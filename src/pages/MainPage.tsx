@@ -17,7 +17,7 @@ import { BookingModal, type BookingSaveOptions } from '../components/BookingModa
 import { createPaymentLink } from '../lib/yookassa';
 import { DatePicker } from '../components/DatePicker';
 import { WeeklySchedule } from '../components/WeeklySchedule';
-import { ChevronLeft, ChevronRight, Calendar, CalendarDays, LogOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, CalendarDays, LogOut, User } from 'lucide-react';
 import type { Booking } from '../App';
 
 export function MainPage() {
@@ -299,6 +299,14 @@ export function MainPage() {
             <span className="text-sm text-gray-600 truncate max-w-[200px]" title={club.name}>
               {club.name}
             </span>
+            <Link
+              to="/account"
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
+              title="Аккаунт"
+            >
+              <User className="w-4 h-4" />
+              <span className="hidden sm:inline">Аккаунт</span>
+            </Link>
             <button
               type="button"
               onClick={handleLogout}
@@ -388,6 +396,7 @@ export function MainPage() {
               initialDuration={selectedSlot?.duration}
               existingBooking={editingBooking || undefined}
               paymentLink={paymentLink}
+              pricing={club?.pricing ?? null}
               onClose={handleCloseModal}
               onSave={handleAddBooking}
             />

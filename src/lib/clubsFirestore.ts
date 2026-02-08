@@ -1,5 +1,5 @@
 import { getFirestoreDb } from './firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, type DocumentSnapshot } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs, orderBy, type DocumentSnapshot } from 'firebase/firestore';
 import type { ClubData } from './clubStorage';
 import type { CourtDoc, ClubPricing } from '../types/club-slots';
 
@@ -164,4 +164,47 @@ export async function getCourts(clubId: string): Promise<CourtDoc[]> {
       updatedAt: data?.updatedAt,
     };
   });
+}
+
+/** Обновить данные клуба в Firestore и синхронизировать подколлекцию courts. */
+export async function updateClubInFirestore(clubId: string, data: Partial<ClubData>): Promise<void> {
+  const db = getFirestoreDb();
+  if (!db) throw new Error('Firebase не настроен');
+
+  const ref = doc(db, COLLECTION_CLUBS, clubId);
+  const payload: Record<string, unknown> = { updatedAt: serverTimestamp() };
+  if (data.name !== undefined) payload.name = data.name;
+  if (data.email !== undefined) payload.email = data.email;
+  if (data.city !== undefined) payload.city = data.city ?? '';
+  if (data.openingTime !== undefined) payload.openingTime = data.openingTime;
+  if (data.closingTime !== undefined) payload.closingTime = data.closingTime;
+  if (data.courtsCount !== undefined) payload.courtsCount = data.courtsCount;
+  if (data.pricing !== undefined) {
+    payload.pricing = (data.pricing.weekday?.length || data.pricing.weekend?.length)
+      ? data.pricing
+      : { weekday: [], weekend: [] };
+  }
+  await updateDoc(ref, payload);
+
+  const newCount = data.courtsCount;
+  if (newCount !== undefined) {
+    const courts = await getCourts(clubId);
+    const now = serverTimestamp();
+    const courtsRef = collection(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_COURTS);
+    if (newCount > courts.length) {
+      for (let i = courts.length + 1; i <= newCount; i++) {
+        await addDoc(courtsRef, {
+          name: `Корт ${i}`,
+          order: i,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    } else if (newCount < courts.length) {
+      const toDelete = courts.slice(newCount);
+      for (const c of toDelete) {
+        await deleteDoc(doc(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_COURTS, c.id));
+      }
+    }
+  }
 }

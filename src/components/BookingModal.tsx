@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { X, Copy, Link2 } from 'lucide-react';
 import { Booking, activityTypes } from '../App';
 import { DatePicker } from './DatePicker';
+import { getPriceForBooking, hasPricing } from '../lib/pricing';
+import type { ClubPricing } from '../types/club-slots';
 
 export interface BookingSaveOptions {
   needPaymentLink: boolean;
@@ -16,11 +18,13 @@ interface BookingModalProps {
   initialDuration?: number;
   existingBooking?: Booking;
   paymentLink?: string | null;
+  /** Прайс клуба для авторасчёта суммы при разовой брони. */
+  pricing?: ClubPricing | null;
   onClose: () => void;
   onSave: (booking: Omit<Booking, 'id'>, bookingId?: string, options?: BookingSaveOptions) => void;
 }
 
-export function BookingModal({ courts, courtId, time, date, initialDuration, existingBooking, paymentLink, onClose, onSave }: BookingModalProps) {
+export function BookingModal({ courts, courtId, time, date, initialDuration, existingBooking, paymentLink, pricing, onClose, onSave }: BookingModalProps) {
   const calculateDuration = (start: string, end: string) => {
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
@@ -46,9 +50,12 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
   });
 
   const selectedActivity = activityTypes.find(a => a.name === activity) || activityTypes[0];
-  
-  // Автоматически показываем поле для регулярных занятий для группы и регулярной брони
   const isRecurringType = activity === 'Группа' || activity === 'Регулярная бронь корта';
+  const isOneTime = activity === 'Разовая бронь корта';
+  const useCalculatedAmount = isOneTime && needPaymentLink && hasPricing(pricing ?? undefined);
+  const calculatedAmount = useCalculatedAmount && pricing
+    ? getPriceForBooking(pricing, selectedDate, selectedTime, calculateEndTime(selectedTime, duration))
+    : 0;
 
   const calculateEndTime = (start: string, hours: number) => {
     const [h, m] = start.split(':').map(Number);
@@ -73,9 +80,13 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
       }
     }
 
+    const amount =
+      useCalculatedAmount && pricing
+        ? getPriceForBooking(pricing, selectedDate, selectedTime, calculateEndTime(selectedTime, duration))
+        : paymentAmount;
     const options: BookingSaveOptions | undefined =
       !existingBooking && needPaymentLink
-        ? { needPaymentLink: true, amount: paymentAmount }
+        ? { needPaymentLink: true, amount }
         : undefined;
 
     onSave(
@@ -270,20 +281,28 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
                 />
                 <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
                   <Link2 className="w-4 h-4" />
-                  Нужна ссылка на оплату
+                  Сгенерировать ссылку на оплату
                 </span>
               </label>
               {needPaymentLink && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Сумма (₽)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    step={100}
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(Number(e.target.value) || 1000)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  {useCalculatedAmount ? (
+                    <p className="text-sm text-gray-600">
+                      Сумма рассчитана по прайсу клуба: <strong>{calculatedAmount} ₽</strong>
+                    </p>
+                  ) : (
+                    <>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Сумма (₽)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        step={100}
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(Number(e.target.value) || 1000)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </>
+                  )}
                 </div>
               )}
             </div>
