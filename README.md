@@ -80,9 +80,9 @@
      ```bash
      git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
      ```
-  2. Добавьте секрет в GitHub: Settings → Secrets and variables → Actions → New repository secret:
-     - Name: `FIREBASE_SERVICE_ACCOUNT_PLAY_TODAY_479819`
-     - Value: содержимое JSON-ключа сервисного аккаунта Firebase (см. [настройка секрета](#настройка-секрета-для-github-actions))
+  2. Добавьте секреты в GitHub: Settings → Secrets and variables → Actions → New repository secret:
+     - `FIREBASE_SERVICE_ACCOUNT_PLAY_TODAY_479819` — содержимое JSON-ключа сервисного аккаунта Firebase (см. [настройка секрета](#настройка-секрета-для-github-actions))
+     - Для сборки в проде нужны переменные Firebase (они подставляются при `npm run build`): `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` — значения берите в Firebase Console → Project settings → General → Your apps (Web app).
   3. Пуш в `main`: `git push -u origin main`
 
   Подробнее: [GITHUB_DEPLOY.md](./GITHUB_DEPLOY.md)
