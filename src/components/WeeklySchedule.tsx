@@ -113,27 +113,19 @@ export function WeeklySchedule({ selectedDate, bookings, onWeekChange, onBooking
       {/* Weekly grid */}
       <div className="overflow-x-auto">
         <div className="flex">
-          {/* Time column */}
+          {/* Time column: header height = court header (48px) + day header row (48px) so labels align with grid rows */}
           <div className="flex-shrink-0 bg-gray-50 border-r border-gray-200" style={{ width: '80px' }}>
-            {/* Empty header for time column */}
-            <div className="h-12 border-b border-gray-200"></div>
-            
-            {/* Time labels */}
+            <div className="border-b border-gray-200" style={{ height: '96px' }}></div>
             <div>
-              {hourlyTimeSlots.map((time, index) => {
-                return (
-                  <div
-                    key={time}
-                    className="px-2 text-xs font-semibold text-gray-700 flex items-start"
-                    style={{ 
-                      height: '40px',
-                      paddingTop: '2px'
-                    }}
-                  >
-                    {time}
-                  </div>
-                );
-              })}
+              {hourlyTimeSlots.map((time) => (
+                <div
+                  key={time}
+                  className="px-2 text-xs font-semibold text-gray-700 flex items-center"
+                  style={{ height: '40px' }}
+                >
+                  {time}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -141,25 +133,13 @@ export function WeeklySchedule({ selectedDate, bookings, onWeekChange, onBooking
           <div className="flex-1">
             {displayCourts.map((court) => (
               <div key={court} className="border-b last:border-b-0">
-                {/* Court header */}
-                <div className="sticky left-0 bg-gray-100 px-3 py-2 font-medium text-sm border-b">
+                {/* Court header — fixed height so it matches time column header offset */}
+                <div className="sticky left-0 bg-gray-100 px-3 font-medium text-sm border-b flex items-center" style={{ height: '48px' }}>
                   {court}
                 </div>
 
                 {/* Days grid for this court */}
                 <div className="grid grid-cols-7 relative relative">
-                  {/* Hour grid lines spanning all days */}
-                  {hourlyTimeSlots.map((time, hourIndex) => (
-                    <div
-                      key={`line-${time}`}
-                      className="absolute left-0 right-0 border-t border-gray-200 pointer-events-none"
-                      style={{ 
-                        top: `${48 + hourIndex * 40}px`,
-                        zIndex: 1
-                      }}
-                    />
-                  ))}
-                  
                   {/* Hour grid lines spanning all days */}
                   {hourlyTimeSlots.map((time, hourIndex) => (
                     <div
