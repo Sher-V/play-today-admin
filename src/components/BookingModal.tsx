@@ -1,19 +1,26 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Copy, Link2 } from 'lucide-react';
 import { Booking, activityTypes } from '../App';
 import { DatePicker } from './DatePicker';
 
+export interface BookingSaveOptions {
+  needPaymentLink: boolean;
+  amount: number;
+}
+
 interface BookingModalProps {
+  courts: string[];
   courtId: string;
   time: string;
   date: string;
   initialDuration?: number;
   existingBooking?: Booking;
+  paymentLink?: string | null;
   onClose: () => void;
-  onSave: (booking: Omit<Booking, 'id'>, bookingId?: string) => void;
+  onSave: (booking: Omit<Booking, 'id'>, bookingId?: string, options?: BookingSaveOptions) => void;
 }
 
-export function BookingModal({ courtId, time, date, initialDuration, existingBooking, onClose, onSave }: BookingModalProps) {
+export function BookingModal({ courts, courtId, time, date, initialDuration, existingBooking, paymentLink, onClose, onSave }: BookingModalProps) {
   const calculateDuration = (start: string, end: string) => {
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
@@ -29,8 +36,9 @@ export function BookingModal({ courtId, time, date, initialDuration, existingBoo
     existingBooking ? calculateDuration(existingBooking.startTime, existingBooking.endTime) : (initialDuration || 1)
   );
   const [recurringEndDate, setRecurringEndDate] = useState(existingBooking?.recurringEndDate || '');
+  const [needPaymentLink, setNeedPaymentLink] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState(1000);
 
-  const courts = ['Корт 1', 'Корт 2', 'Корт 3', 'Корт 4'];
   const timeSlots = Array.from({ length: 36 }, (_, i) => {
     const hour = Math.floor(i / 2) + 6;
     const minute = i % 2 === 0 ? '00' : '30';
@@ -54,7 +62,6 @@ export function BookingModal({ courtId, time, date, initialDuration, existingBoo
     e.preventDefault();
     if (!comment.trim()) return;
 
-    // Validate recurring end date if recurring is enabled
     if (isRecurringType) {
       if (!recurringEndDate) {
         alert('Пожалуйста, укажите дату окончания для регулярных занятий');
@@ -66,20 +73,38 @@ export function BookingModal({ courtId, time, date, initialDuration, existingBoo
       }
     }
 
-    onSave({
-      courtId: selectedCourtId,
-      date: selectedDate,
-      startTime: selectedTime,
-      endTime: calculateEndTime(selectedTime, duration),
-      activity,
-      comment: comment.trim(),
-      color: selectedActivity.color,
-      isRecurring: isRecurringType,
-      recurringEndDate: isRecurringType ? recurringEndDate : undefined,
-    }, existingBooking?.id);
+    const options: BookingSaveOptions | undefined =
+      !existingBooking && needPaymentLink
+        ? { needPaymentLink: true, amount: paymentAmount }
+        : undefined;
 
-    setComment('');
-    onClose();
+    onSave(
+      {
+        courtId: selectedCourtId,
+        date: selectedDate,
+        startTime: selectedTime,
+        endTime: calculateEndTime(selectedTime, duration),
+        activity,
+        comment: comment.trim(),
+        color: selectedActivity.color,
+        isRecurring: isRecurringType,
+        recurringEndDate: isRecurringType ? recurringEndDate : undefined,
+      },
+      existingBooking?.id,
+      options
+    );
+
+    if (!options) {
+      setComment('');
+      onClose();
+    }
+  };
+
+  const handleCopyLink = () => {
+    if (paymentLink) {
+      navigator.clipboard.writeText(paymentLink);
+      alert('Ссылка скопирована в буфер обмена');
+    }
   };
 
   const getDurationLabel = (hours: number) => {
@@ -89,6 +114,50 @@ export function BookingModal({ courtId, time, date, initialDuration, existingBoo
     const hasHalf = hours % 1 === 0.5;
     return hasHalf ? `${wholeHours}.5 часа` : `${wholeHours} часа`;
   };
+
+  // Экран «Бронирование создано» со ссылкой на оплату
+  if (paymentLink) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-green-700">Бронирование создано</h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+              aria-label="Закрыть"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <p className="text-sm text-gray-600 mb-2">Ссылку можно отправить клиенту для оплаты:</p>
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              readOnly
+              value={paymentLink}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <Copy className="w-4 h-4" />
+              Копировать
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Закрыть
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
@@ -180,13 +249,43 @@ export function BookingModal({ courtId, time, date, initialDuration, existingBoo
                 />
               </div>
               <p className="text-xs text-gray-600">
-                💡 Бронирования будут созданы каждую неделю в {time} на корте {courtId} до ыбранной даты.
+                💡 Бронирования будут созданы каждую неделю в {time} на корте {courtId} до выбранной даты.
                 {recurringEndDate && (
                   <span className="block mt-1 font-medium">
                     Примерно {Math.ceil((new Date(recurringEndDate).getTime() - new Date(date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1} занятий.
                   </span>
                 )}
               </p>
+            </div>
+          )}
+
+          {!existingBooking && (
+            <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={needPaymentLink}
+                  onChange={(e) => setNeedPaymentLink(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                  <Link2 className="w-4 h-4" />
+                  Нужна ссылка на оплату
+                </span>
+              </label>
+              {needPaymentLink && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Сумма (₽)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={100}
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(Number(e.target.value) || 1000)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
             </div>
           )}
 

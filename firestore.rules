@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Клубы и подколлекции courts, bookings (структура как в ADMIN_README)
+    match /clubs/{clubId} {
+      allow read, write: if request.auth != null;
+      match /courts/{courtId} {
+        allow read, write: if request.auth != null;
+      }
+      match /bookings/{bookingId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+    // Всё остальное по умолчанию запрещено
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

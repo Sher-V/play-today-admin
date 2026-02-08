@@ -9,6 +9,53 @@
 
   Run `npm run dev` to start the development server.
 
+  ## Firestore: сохранение клубов
+
+  При регистрации данные клуба сохраняются в коллекцию **clubs** в Firestore.
+
+  1. В [Firebase Console](https://console.firebase.google.com/) включите Firestore: **Build → Firestore Database → Create database** (режим production или test).
+  2. **Обязательно настройте правила доступа**: **Firestore Database → Rules**. Без разрешения на запись коллекция **clubs** не создаётся и документы не сохраняются. Вставьте правила (или скопируйте из файла `firestore.rules` в проекте):
+     ```
+     rules_version = '2';
+     service cloud.firestore {
+       match /databases/{database}/documents {
+         match /clubs/{clubId} {
+           allow read, create, update, delete: if request.auth != null;
+         }
+       }
+     }
+     ```
+     Нажмите **Publish**.
+  3. Скопируйте `.env.example` в `.env` и заполните переменные из Project settings → General → Your apps (Web app config).
+  4. Установите зависимости: `npm i` (включая пакет `firebase`).
+
+  Без настроенного `.env` или без правил Firestore запись в облако не сработает; при ошибке в форме показывается сообщение.
+
+  **Структура Firestore** (как в ADMIN_README):
+  - `clubs/{clubId}` — документ клуба (name, city, email, courtsCount, openingTime, closingTime, userId, createdAt, updatedAt).
+  - `clubs/{clubId}/courts/{courtId}` — подколлекция кортов (Корт 1, Корт 2, … по courtsCount; поля name, order, createdAt, updatedAt).
+  - `clubs/{clubId}/bookings/{bookingId}` — подколлекция броней (для дальнейшей интеграции: courtId, type, startTime, endTime, comment, firstSessionDate, lastSessionDate).
+  Типы и константы: `src/types/club-slots.ts`.
+
+  ## Авторизация и маршруты
+
+  - **`/signin`** — вход (email и пароль). По умолчанию приложение открывается на этой странице.
+  - **`/signup`** — регистрация клуба (форма регистрации). Ссылка «Зарегистрироваться» ведёт с `/signin` на `/signup`.
+  - **`/`** — главная (расписание). Доступна только после входа.
+
+  В [Firebase Console](https://console.firebase.google.com/) включите способ входа **Email/Password** (Authentication → Sign-in method).
+
+  ## Ссылка на оплату (ЮKassa)
+
+  В форме создания брони есть галочка **«Нужна ссылка на оплату»**. При сохранении брони с этой галочкой создаётся платёж в ЮKassa и в модалке показывается ссылка для отправки клиенту.
+
+  1. Задеплойте Cloud Function: из корня проекта выполните `cd functions && npm i && npm run build && cd .. && firebase deploy --only functions`.
+  2. Задайте учётные данные ЮKassa в Firebase:
+     - **Вариант A**: в [Firebase Console](https://console.firebase.google.com/) → Project settings → Service accounts → или через CLI:
+       `firebase functions:config:set yookassa.shop_id="ВАШ_SHOP_ID" yookassa.secret_key="ВАШ_SECRET_KEY"`
+     - **Вариант B**: в Google Cloud Console → Cloud Functions → выберите функцию `createPaymentLink` → Edit → Variables and secrets → добавьте переменные `YOOKASSA_SHOP_ID` и `YOOKASSA_SECRET_KEY`.
+  3. Shop ID и Secret Key берутся в [личном кабинете ЮKassa](https://yookassa.ru/my) (раздел «Настройки» → «Ключи API»).
+
   ## Deployment to Google Cloud
 
   This app is configured for deployment to Google Cloud with custom domain support.

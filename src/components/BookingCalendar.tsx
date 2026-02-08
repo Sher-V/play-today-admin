@@ -3,14 +3,13 @@ import { X } from 'lucide-react';
 import { useState } from 'react';
 
 interface BookingCalendarProps {
+  courts: string[];
   selectedDate: string;
   bookings: Booking[];
   onSlotClick: (courtId: string, time: string, duration?: number) => void;
   onDeleteBooking: (id: string) => void;
   onBookingClick: (booking: Booking) => void;
 }
-
-const courts = ['Корт 1', 'Корт 2', 'Корт 3', 'Корт 4'];
 
 const timeSlots = [
   '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30',
@@ -20,7 +19,7 @@ const timeSlots = [
   '22:00', '22:30', '23:00', '23:30'
 ];
 
-export function BookingCalendar({ selectedDate, bookings, onSlotClick, onDeleteBooking, onBookingClick }: BookingCalendarProps) {
+export function BookingCalendar({ courts, selectedDate, bookings, onSlotClick, onDeleteBooking, onBookingClick }: BookingCalendarProps) {
   const [dragStart, setDragStart] = useState<{ court: string; timeIndex: number } | null>(null);
   const [dragEnd, setDragEnd] = useState<{ court: string; timeIndex: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -83,7 +82,7 @@ export function BookingCalendar({ selectedDate, bookings, onSlotClick, onDeleteB
       <div className="overflow-x-auto">
         <div className="inline-block min-w-full">
           {/* Header Row */}
-          <div className="grid grid-cols-[100px_repeat(4,1fr)] border-b border-gray-200 bg-gray-50">
+          <div className="grid border-b border-gray-200 bg-gray-50" style={{ gridTemplateColumns: `100px repeat(${courts.length}, 1fr)` }}>
             <div className="p-4 font-semibold text-gray-700 border-r border-gray-200">Время</div>
             {courts.map((court) => (
               <div key={court} className="p-4 font-semibold text-gray-700 text-center border-r border-gray-200 last:border-r-0">
@@ -96,7 +95,7 @@ export function BookingCalendar({ selectedDate, bookings, onSlotClick, onDeleteB
           {timeSlots.map((time, timeIndex) => {
             const isFullHour = time.endsWith(':00');
             return (
-              <div key={time} className={`grid grid-cols-[100px_repeat(4,1fr)] border-b border-gray-100 hover:bg-gray-50 ${isFullHour ? 'border-t-2 border-t-gray-300' : ''}`}>
+              <div key={time} className={`grid border-b border-gray-100 hover:bg-gray-50 ${isFullHour ? 'border-t-2 border-t-gray-300' : ''}`} style={{ gridTemplateColumns: `100px repeat(${courts.length}, 1fr)` }}>
                 <div className={`p-2 text-sm ${isFullHour ? 'font-semibold text-gray-700 bg-gray-50' : 'font-normal text-gray-500 bg-gray-50/50'} border-r border-gray-200`}>
                   {time}
                 </div>

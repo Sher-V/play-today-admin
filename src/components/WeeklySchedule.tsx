@@ -3,6 +3,7 @@ import { Booking } from '../App';
 import { useState } from 'react';
 
 interface WeeklyScheduleProps {
+  courts: string[];
   selectedDate: string;
   bookings: Booking[];
   onWeekChange: (direction: 'prev' | 'next') => void;
@@ -10,8 +11,7 @@ interface WeeklyScheduleProps {
   onSlotClick: (courtId: string, time: string, duration?: number, date?: string) => void;
 }
 
-export function WeeklySchedule({ selectedDate, bookings, onWeekChange, onBookingClick, onSlotClick }: WeeklyScheduleProps) {
-  const courts = ['Корт 1', 'Корт 2', 'Корт 3', 'Корт 4'];
+export function WeeklySchedule({ courts, selectedDate, bookings, onWeekChange, onBookingClick, onSlotClick }: WeeklyScheduleProps) {
   const [selectedCourt, setSelectedCourt] = useState<string | 'all'>('all');
   
   // All time slots for calculations

@@ -1,0 +1,329 @@
+/* Стили страницы регистрации — как в оригинальном проекте «Регистрация теннисного клуба» */
+.registration-page {
+  min-height: 100vh;
+  background: #EBFBEE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.registration-page .registration-card {
+  background: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  padding: 2rem;
+  width: 100%;
+  max-width: 28rem;
+}
+
+.registration-page .registration-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.registration-page .registration-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  background: #28A745;
+  border-radius: 9999px;
+  margin-bottom: 1rem;
+}
+
+.registration-page .registration-icon svg {
+  width: 2rem;
+  height: 2rem;
+  color: #ffffff;
+}
+
+.registration-page .registration-title {
+  margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #333;
+}
+
+.registration-page .registration-subtitle {
+  color: var(--color-gray-600, #4b5563);
+}
+
+.registration-page form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.registration-page label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--color-gray-700, #374151);
+  font-size: 0.875rem;
+}
+
+.registration-page .registration-label-sm {
+  font-size: 0.875rem;
+  color: var(--color-gray-600, #4b5563);
+}
+
+.registration-page input[type="text"],
+.registration-page input[type="email"],
+.registration-page input[type="password"],
+.registration-page input[type="number"],
+.registration-page input[type="time"] {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-gray-300, #d1d5db);
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.registration-page input:focus {
+  outline: none;
+  border-color: #28A745;
+  box-shadow: 0 0 0 2px rgb(40 167 69 / 0.3);
+}
+
+.registration-page .registration-time-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-gray-700, #374151);
+  margin-bottom: 0.75rem;
+}
+
+.registration-page .registration-time-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.registration-page .registration-submit {
+  width: 100%;
+  background: #28A745;
+  color: white;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 2rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.registration-page .registration-submit:hover {
+  background: #218838;
+}
+
+.registration-page .registration-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.registration-page .registration-error {
+  color: #dc3545;
+  font-size: 0.875rem;
+  margin-top: -0.5rem;
+}
+
+.registration-page .registration-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+  color: var(--color-gray-600, #4b5563);
+  font-size: 0.875rem;
+}
+
+.registration-page .registration-link {
+  color: #28A745;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.registration-page .registration-link:hover {
+  text-decoration: underline;
+}
+
+/* Шаги регистрации */
+.registration-page .registration-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--color-gray-500, #6b7280);
+}
+
+.registration-page .registration-step-active {
+  font-weight: 700;
+  color: #28A745;
+}
+
+.registration-page .registration-step-done {
+  color: #28A745;
+}
+
+.registration-page .registration-step-divider {
+  color: var(--color-gray-400, #9ca3af);
+}
+
+/* Шаг 2: цены */
+.registration-page .registration-price-intro {
+  font-size: 0.875rem;
+  color: var(--color-gray-600, #4b5563);
+  margin-bottom: 1.25rem;
+}
+
+.registration-page .registration-price-section {
+  margin-bottom: 1.5rem;
+}
+
+.registration-page .registration-price-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.registration-page .registration-price-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-gray-800, #1f2937);
+  margin: 0;
+}
+
+.registration-page .registration-btn-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8125rem;
+  color: #28A745;
+  background: transparent;
+  border: 1px solid #28A745;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.registration-page .registration-btn-add:hover {
+  background: #28A745;
+  color: white;
+}
+
+.registration-page .registration-btn-add-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.registration-page .registration-price-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.registration-page .registration-price-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.registration-page .registration-price-time {
+  flex: 0 0 auto;
+  min-width: 5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-gray-300, #d1d5db);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.registration-page .registration-price-time:focus {
+  outline: none;
+  border-color: #28A745;
+}
+
+.registration-page .registration-price-dash {
+  color: var(--color-gray-500, #6b7280);
+  font-size: 0.875rem;
+}
+
+.registration-page .registration-price-input {
+  width: 5.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-gray-300, #d1d5db);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.registration-page .registration-price-input:focus {
+  outline: none;
+  border-color: #28A745;
+}
+
+.registration-page .registration-price-currency {
+  font-size: 0.875rem;
+  color: var(--color-gray-600, #4b5563);
+}
+
+.registration-page .registration-btn-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  color: var(--color-gray-500, #6b7280);
+  background: transparent;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.registration-page .registration-btn-remove:hover {
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.08);
+}
+
+.registration-page .registration-btn-remove-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.registration-page .registration-step2-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.registration-page .registration-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  color: var(--color-gray-700, #374151);
+  background: white;
+  border: 1px solid var(--color-gray-300, #d1d5db);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.registration-page .registration-btn-back:hover {
+  background: var(--color-gray-50, #f9fafb);
+  border-color: var(--color-gray-400, #9ca3af);
+}
+
+.registration-page .registration-btn-back-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.registration-page .registration-step2-actions .registration-submit {
+  flex: 1;
+  margin-top: 0;
+}
