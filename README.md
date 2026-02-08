@@ -24,4 +24,23 @@
   7. Add custom domain in Firebase Console → Hosting → Add custom domain
 
   For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md)
+
+  ## Deploy on push to GitHub
+
+  При пуше в ветку `main` приложение автоматически деплоится на Firebase Hosting.
+
+  1. Создайте репозиторий на GitHub и добавьте remote:
+     ```bash
+     git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+     ```
+  2. Добавьте секрет в GitHub: Settings → Secrets and variables → Actions → New repository secret:
+     - Name: `FIREBASE_SERVICE_ACCOUNT_PLAY_TODAY_479819`
+     - Value: содержимое JSON-ключа сервисного аккаунта Firebase (см. [настройка секрета](#настройка-секрета-для-github-actions))
+  3. Пуш в `main`: `git push -u origin main`
+
+  Подробнее: [GITHUB_DEPLOY.md](./GITHUB_DEPLOY.md)
+
+  ### Настройка секрета для GitHub Actions
+
+  В [Firebase Console](https://console.firebase.google.com/) → Project settings → Service accounts → Generate new private key. Скачанный JSON целиком вставьте в значение секрета `FIREBASE_SERVICE_ACCOUNT_PLAY_TODAY_479819`.
   
