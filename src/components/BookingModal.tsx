@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Copy, Link2 } from 'lucide-react';
 import { Booking, activityTypes } from '../App';
 import { DatePicker } from './DatePicker';
@@ -18,13 +18,15 @@ interface BookingModalProps {
   initialDuration?: number;
   existingBooking?: Booking;
   paymentLink?: string | null;
-  /** Прайс клуба для авторасчёта суммы при разовой брони. */
-  pricing?: ClubPricing | null;
+  /** Прайс по кортам (имя корта → прайс). Для расчёта суммы используется прайс выбранного корта. */
+  pricingByCourt?: Record<string, ClubPricing | null | undefined>;
   onClose: () => void;
-  onSave: (booking: Omit<Booking, 'id'>, bookingId?: string, options?: BookingSaveOptions) => void;
+  onSave: (booking: Omit<Booking, 'id'>, bookingId?: string, options?: BookingSaveOptions) => void | Promise<void>;
+  /** При нажатии «Отменить бронь» — вызвать это (показать окно подтверждения отмены) и закрыть модалку. Если не передано, используется confirm + сохранение со статусом canceled. */
+  onRequestCancelBooking?: (booking: Booking) => void;
 }
 
-export function BookingModal({ courts, courtId, time, date, initialDuration, existingBooking, paymentLink, pricing, onClose, onSave }: BookingModalProps) {
+export function BookingModal({ courts, courtId, time, date, initialDuration, existingBooking, paymentLink, pricingByCourt, onClose, onSave, onRequestCancelBooking }: BookingModalProps) {
   const calculateDuration = (start: string, end: string) => {
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
@@ -40,22 +42,18 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
     existingBooking ? calculateDuration(existingBooking.startTime, existingBooking.endTime) : (initialDuration || 1)
   );
   const [recurringEndDate, setRecurringEndDate] = useState(existingBooking?.recurringEndDate || '');
+  const [isPaid, setIsPaid] = useState(existingBooking?.status === 'confirmed');
   const [needPaymentLink, setNeedPaymentLink] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(1000);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const pricing = pricingByCourt?.[selectedCourtId] ?? null;
 
   const timeSlots = Array.from({ length: 36 }, (_, i) => {
     const hour = Math.floor(i / 2) + 6;
     const minute = i % 2 === 0 ? '00' : '30';
     return `${hour.toString().padStart(2, '0')}:${minute}`;
   });
-
-  const selectedActivity = activityTypes.find(a => a.name === activity) || activityTypes[0];
-  const isRecurringType = activity === 'Группа' || activity === 'Регулярная бронь корта';
-  const isOneTime = activity === 'Разовая бронь корта';
-  const useCalculatedAmount = isOneTime && needPaymentLink && hasPricing(pricing ?? undefined);
-  const calculatedAmount = useCalculatedAmount && pricing
-    ? getPriceForBooking(pricing, selectedDate, selectedTime, calculateEndTime(selectedTime, duration))
-    : 0;
 
   const calculateEndTime = (start: string, hours: number) => {
     const [h, m] = start.split(':').map(Number);
@@ -65,7 +63,15 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
     return `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const selectedActivity = activityTypes.find(a => a.name === activity) || activityTypes[0];
+  const isRecurringType = activity === 'Группа' || activity === 'Регулярная бронь корта';
+  const isOneTime = activity === 'Разовая бронь корта';
+  const useCalculatedAmount = isOneTime && needPaymentLink && hasPricing(pricing ?? undefined);
+  const calculatedAmount = useCalculatedAmount && pricing
+    ? getPriceForBooking(pricing, selectedDate, selectedTime, calculateEndTime(selectedTime, duration))
+    : 0;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!comment.trim()) return;
 
@@ -85,29 +91,36 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
         ? getPriceForBooking(pricing, selectedDate, selectedTime, calculateEndTime(selectedTime, duration))
         : paymentAmount;
     const options: BookingSaveOptions | undefined =
-      !existingBooking && needPaymentLink
+      !existingBooking && !isPaid && needPaymentLink
         ? { needPaymentLink: true, amount }
         : undefined;
 
-    onSave(
-      {
-        courtId: selectedCourtId,
-        date: selectedDate,
-        startTime: selectedTime,
-        endTime: calculateEndTime(selectedTime, duration),
-        activity,
-        comment: comment.trim(),
-        color: selectedActivity.color,
-        isRecurring: isRecurringType,
-        recurringEndDate: isRecurringType ? recurringEndDate : undefined,
-      },
-      existingBooking?.id,
-      options
-    );
-
-    if (!options) {
-      setComment('');
-      onClose();
+    setIsSubmitting(true);
+    try {
+      await Promise.resolve(
+        onSave(
+          {
+            courtId: selectedCourtId,
+            date: selectedDate,
+            startTime: selectedTime,
+            endTime: calculateEndTime(selectedTime, duration),
+            activity,
+            comment: comment.trim(),
+            color: selectedActivity.color,
+            isRecurring: isRecurringType,
+            recurringEndDate: isRecurringType ? recurringEndDate : undefined,
+            status: isPaid ? 'confirmed' : 'hold',
+          },
+          existingBooking?.id,
+          options
+        )
+      );
+      if (!options) {
+        setComment('');
+        onClose();
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -118,6 +131,42 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
     }
   };
 
+  const handleCancelBooking = () => {
+    if (!existingBooking) return;
+    if (onRequestCancelBooking) {
+      onRequestCancelBooking(existingBooking);
+      onClose();
+      return;
+    }
+    if (!confirm('Перевести бронь в статус «Отменена»?')) return;
+    setIsSubmitting(true);
+    (async () => {
+      try {
+        await Promise.resolve(
+          onSave(
+            {
+              courtId: selectedCourtId,
+              date: selectedDate,
+              startTime: selectedTime,
+              endTime: calculateEndTime(selectedTime, duration),
+              activity,
+              comment: comment.trim(),
+              color: selectedActivity.color,
+              isRecurring: isRecurringType,
+              recurringEndDate: isRecurringType ? recurringEndDate : undefined,
+              status: 'canceled',
+            },
+            existingBooking.id,
+            undefined
+          )
+        );
+        onClose();
+      } finally {
+        setIsSubmitting(false);
+      }
+    })();
+  };
+
   const getDurationLabel = (hours: number) => {
     if (hours === 0.5) return '30 мин';
     if (hours === 1) return '1 час';
@@ -126,10 +175,18 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
     return hasHalf ? `${wholeHours}.5 часа` : `${wholeHours} часа`;
   };
 
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   // Экран «Бронирование создано» со ссылкой на оплату
   if (paymentLink) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto" onClick={onClose}>
         <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-green-700">Бронирование создано</h2>
@@ -171,19 +228,22 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[calc(100vh-2rem)] flex flex-col my-auto relative p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between flex-shrink-0 pb-3">
           <h2 className="font-semibold">{existingBooking ? 'Редактирование бронирования' : 'Новое бронирование'}</h2>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            disabled={isSubmitting}
+            className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50 cursor-pointer"
             aria-label="Закрыть"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        <div className="overflow-y-auto flex-1 min-h-0 pt-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Корт</label>
@@ -270,7 +330,22 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
             </div>
           )}
 
-          {!existingBooking && (
+          <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isPaid}
+                onChange={(e) => {
+                  setIsPaid(e.target.checked);
+                  if (e.target.checked) setNeedPaymentLink(false);
+                }}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Бронь оплачена</span>
+            </label>
+          </div>
+
+          {!existingBooking && !isPaid && (
             <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -325,18 +400,43 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
             >
               Отмена
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50"
             >
               {existingBooking ? 'Сохранить изменения' : 'Создать бронирование'}
             </button>
           </div>
+          {existingBooking && existingBooking.status !== 'canceled' && (
+            <div className="pt-3 mt-3 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={handleCancelBooking}
+                disabled={isSubmitting}
+                className="w-full px-4 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Отменить бронь
+              </button>
+            </div>
+          )}
         </form>
+        </div>
+        {isSubmitting && (
+          <div
+            className="absolute inset-0 rounded-lg flex items-center justify-center bg-white/90"
+            style={{ zIndex: 9999 }}
+            aria-busy="true"
+            aria-label="Сохранение"
+          >
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
       </div>
     </div>
   );

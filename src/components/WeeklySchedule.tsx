@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { Booking } from '../App';
 import { useState } from 'react';
 
@@ -80,7 +80,7 @@ export function WeeklySchedule({ courts, selectedDate, bookings, onWeekChange, o
   return (
     <div className="bg-white rounded-lg shadow-sm">
       {/* Week navigation */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between py-2 px-3 border-b">
         <button
           className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
           onClick={() => onWeekChange('prev')}
@@ -113,15 +113,15 @@ export function WeeklySchedule({ courts, selectedDate, bookings, onWeekChange, o
       {/* Weekly grid */}
       <div className="overflow-x-auto">
         <div className="flex">
-          {/* Time column: header height = court header (48px) + day header row (48px) so labels align with grid rows */}
-          <div className="flex-shrink-0 bg-gray-50 border-r border-gray-200" style={{ width: '80px' }}>
-            <div className="border-b border-gray-200" style={{ height: '96px' }}></div>
+          {/* Time column: header height = court header (36px) + day header row (36px) so labels align with grid rows */}
+          <div className="flex-shrink-0 bg-gray-50 border-r border-gray-200" style={{ width: '72px' }}>
+            <div className="border-b border-gray-200" style={{ height: '72px' }}></div>
             <div>
               {hourlyTimeSlots.map((time) => (
                 <div
                   key={time}
-                  className="px-2 text-xs font-semibold text-gray-700 flex items-center"
-                  style={{ height: '40px' }}
+                  className="px-1.5 text-xs font-semibold text-gray-700 flex items-center"
+                  style={{ height: '28px' }}
                 >
                   {time}
                 </div>
@@ -134,7 +134,7 @@ export function WeeklySchedule({ courts, selectedDate, bookings, onWeekChange, o
             {displayCourts.map((court) => (
               <div key={court} className="border-b last:border-b-0">
                 {/* Court header — fixed height so it matches time column header offset */}
-                <div className="sticky left-0 bg-gray-100 px-3 font-medium text-sm border-b flex items-center" style={{ height: '48px' }}>
+                <div className="sticky left-0 bg-gray-100 px-2 py-1.5 font-medium text-sm border-b flex items-center" style={{ height: '36px' }}>
                   {court}
                 </div>
 
@@ -146,7 +146,7 @@ export function WeeklySchedule({ courts, selectedDate, bookings, onWeekChange, o
                       key={`line-${time}`}
                       className="absolute left-0 right-0 border-t border-gray-200 pointer-events-none"
                       style={{ 
-                        top: `${48 + hourIndex * 40}px`,
+                        top: `${36 + hourIndex * 28}px`,
                         zIndex: 1
                       }}
                     />
@@ -159,17 +159,17 @@ export function WeeklySchedule({ courts, selectedDate, bookings, onWeekChange, o
                     return (
                       <div key={date} className="border-r last:border-r-0 min-w-[120px]">
                         {/* Day header */}
-                        <div className={`px-2 text-center text-xs border-b flex flex-col items-center justify-center ${
+                        <div className={`px-1.5 text-center text-xs border-b flex flex-col items-center justify-center ${
                           isToday ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600'
-                        }`} style={{ height: '48px' }}>
+                        }`} style={{ height: '36px' }}>
                           <div>{dayNames[dayIndex]}</div>
-                          <div className="text-[10px]">
+                          <div className="text-[10px] leading-tight">
                             {dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                           </div>
                         </div>
 
                         {/* Time slots for this day */}
-                        <div className="relative" style={{ height: `${hourlyTimeSlots.length * 40}px` }}>
+                        <div className="relative" style={{ height: `${hourlyTimeSlots.length * 28}px` }}>
                           {/* Clickable 30-min slots */}
                           {timeSlots.map((time, timeIndex) => {
                             const bookingsInSlot = getBookingsForSlot(court, date, time);
@@ -183,28 +183,31 @@ export function WeeklySchedule({ courts, selectedDate, bookings, onWeekChange, o
                                 key={`${date}-${time}`}
                                 className="absolute left-0 right-0"
                                 style={{ 
-                                  top: `${timeIndex * 20}px`,
-                                  height: '20px'
+                                  top: `${timeIndex * 14}px`,
+                                  height: '14px'
                                 }}
                               >
                                 {booking && isFirstSlot && (
                                   <div
-                                    className="absolute inset-0 text-white text-[9px] px-1 flex items-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity z-10"
+                                    className="absolute inset-0 text-white text-[8px] px-0.5 flex items-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity z-10"
                                     style={{ 
                                       backgroundColor: booking.color,
-                                      height: `${(timeToMinutes(booking.endTime) - timeToMinutes(booking.startTime)) / 30 * 20}px`
+                                      height: `${(timeToMinutes(booking.endTime) - timeToMinutes(booking.startTime)) / 30 * 14}px`
                                     }}
                                     onClick={() => onBookingClick(booking)}
-                                    title={booking.comment}
+                                    title={booking.status === 'hold' ? `${booking.comment} (ожидает оплаты)` : booking.comment}
                                   >
-                                    <span className="truncate">{booking.comment}</span>
+                                    <span className="truncate flex items-center gap-0.5">
+                                      {booking.status === 'hold' && <Clock className="w-2.5 h-2.5 shrink-0 opacity-90" />}
+                                      {booking.comment}
+                                    </span>
                                   </div>
                                 )}
                                 {!booking && (
                                   <div
                                     className="absolute inset-0 cursor-pointer hover:bg-blue-50/50 transition-colors"
                                     style={{ 
-                                      height: '20px'
+                                      height: '14px'
                                     }}
                                     onClick={() => onSlotClick(court, time, 1, date)}
                                   />
@@ -224,8 +227,8 @@ export function WeeklySchedule({ courts, selectedDate, bookings, onWeekChange, o
       </div>
 
       {/* Time labels sidebar */}
-      <div className="border-t bg-gray-50 p-4">
-        <div className="text-xs text-gray-500 space-y-1">
+      <div className="border-t bg-gray-50 py-2 px-3">
+        <div className="text-xs text-gray-500 space-y-0.5">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded" style={{ backgroundColor: '#7dd3fc' }}></div>
             <span>Разовая бронь корта</span>

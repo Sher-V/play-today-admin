@@ -24,6 +24,7 @@ export async function saveClubToFirestore(data: ClubData, userId: string): Promi
     name: data.name,
     email: data.email,
     city: data.city ?? '',
+    yandexMapsUrl: data.yandexMapsUrl ?? '',
     courtsCount: data.courtsCount,
     openingTime: data.openingTime,
     closingTime: data.closingTime,
@@ -86,6 +87,7 @@ function docToClubData(d: DocumentSnapshot): ClubData {
     name: data?.name ?? '',
     email: data?.email ?? '',
     city: data?.city ?? '',
+    yandexMapsUrl: data?.yandexMapsUrl ?? '',
     courtsCount: Number(data?.courtsCount) || 1,
     openingTime: data?.openingTime ?? '08:00',
     closingTime: data?.closingTime ?? '22:00',
@@ -156,10 +158,12 @@ export async function getCourts(clubId: string): Promise<CourtDoc[]> {
   const snapshot = await getDocs(q);
   return snapshot.docs.map((d) => {
     const data = d.data();
+    const pricing = parsePricingFromDoc(data?.pricing);
     return {
       id: d.id,
       name: data?.name ?? '',
       order: Number(data?.order) ?? 0,
+      ...(pricing && { pricing }),
       createdAt: data?.createdAt,
       updatedAt: data?.updatedAt,
     };
@@ -176,6 +180,7 @@ export async function updateClubInFirestore(clubId: string, data: Partial<ClubDa
   if (data.name !== undefined) payload.name = data.name;
   if (data.email !== undefined) payload.email = data.email;
   if (data.city !== undefined) payload.city = data.city ?? '';
+  if (data.yandexMapsUrl !== undefined) payload.yandexMapsUrl = data.yandexMapsUrl ?? '';
   if (data.openingTime !== undefined) payload.openingTime = data.openingTime;
   if (data.closingTime !== undefined) payload.closingTime = data.closingTime;
   if (data.courtsCount !== undefined) payload.courtsCount = data.courtsCount;

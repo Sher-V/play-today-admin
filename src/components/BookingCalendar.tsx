@@ -1,5 +1,5 @@
 import { Booking } from '../App';
-import { X } from 'lucide-react';
+import { X, Clock } from 'lucide-react';
 import { useState } from 'react';
 
 interface BookingCalendarProps {
@@ -7,7 +7,8 @@ interface BookingCalendarProps {
   selectedDate: string;
   bookings: Booking[];
   onSlotClick: (courtId: string, time: string, duration?: number) => void;
-  onDeleteBooking: (id: string) => void;
+  /** Отменить бронь (перевести в статус canceled). Вызывается после подтверждения пользователя. */
+  onCancelBooking: (booking: Booking) => void;
   onBookingClick: (booking: Booking) => void;
 }
 
@@ -19,7 +20,7 @@ const timeSlots = [
   '22:00', '22:30', '23:00', '23:30'
 ];
 
-export function BookingCalendar({ courts, selectedDate, bookings, onSlotClick, onDeleteBooking, onBookingClick }: BookingCalendarProps) {
+export function BookingCalendar({ courts, selectedDate, bookings, onSlotClick, onCancelBooking, onBookingClick }: BookingCalendarProps) {
   const [dragStart, setDragStart] = useState<{ court: string; timeIndex: number } | null>(null);
   const [dragEnd, setDragEnd] = useState<{ court: string; timeIndex: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -83,9 +84,9 @@ export function BookingCalendar({ courts, selectedDate, bookings, onSlotClick, o
         <div className="inline-block min-w-full">
           {/* Header Row */}
           <div className="grid border-b border-gray-200 bg-gray-50" style={{ gridTemplateColumns: `100px repeat(${courts.length}, 1fr)` }}>
-            <div className="p-4 font-semibold text-gray-700 border-r border-gray-200">Время</div>
+            <div className="py-2 px-3 font-semibold text-gray-700 border-r border-gray-200 text-sm">Время</div>
             {courts.map((court) => (
-              <div key={court} className="p-4 font-semibold text-gray-700 text-center border-r border-gray-200 last:border-r-0">
+              <div key={court} className="py-2 px-3 font-semibold text-gray-700 text-center border-r border-gray-200 last:border-r-0 text-sm">
                 {court}
               </div>
             ))}
@@ -96,7 +97,7 @@ export function BookingCalendar({ courts, selectedDate, bookings, onSlotClick, o
             const isFullHour = time.endsWith(':00');
             return (
               <div key={time} className={`grid border-b border-gray-100 hover:bg-gray-50 ${isFullHour ? 'border-t-2 border-t-gray-300' : ''}`} style={{ gridTemplateColumns: `100px repeat(${courts.length}, 1fr)` }}>
-                <div className={`p-2 text-sm ${isFullHour ? 'font-semibold text-gray-700 bg-gray-50' : 'font-normal text-gray-500 bg-gray-50/50'} border-r border-gray-200`}>
+                <div className={`py-1 px-2 text-xs ${isFullHour ? 'font-semibold text-gray-700 bg-gray-50' : 'font-normal text-gray-500 bg-gray-50/50'} border-r border-gray-200`}>
                   {time}
                 </div>
                 {courts.map((court, idx) => {
@@ -105,17 +106,17 @@ export function BookingCalendar({ courts, selectedDate, bookings, onSlotClick, o
                   return (
                     <div
                       key={`${court}-${time}`}
-                      className={`relative border-r border-gray-200 last:border-r-0 h-10 cursor-pointer transition-colors ${!booking ? 'hover:bg-blue-50' : ''}`}
+                      className={`relative border-r border-gray-200 last:border-r-0 h-7 cursor-pointer transition-colors ${!booking ? 'hover:bg-blue-50' : ''}`}
                       onMouseDown={() => handleMouseDown(court, timeIndex, !!booking)}
                       onMouseEnter={() => handleMouseEnter(court, timeIndex)}
                       onClick={() => !booking && onSlotClick(court, time, 1)}
                     >
                       {booking && isFirstSlot && (
                         <div
-                          className="absolute inset-0 rounded p-2 text-white text-sm flex flex-col justify-between group cursor-pointer z-10"
+                          className="absolute inset-0 rounded py-1 px-2 text-white text-xs flex flex-col justify-between group cursor-pointer z-10"
                           style={{ 
                             backgroundColor: booking.color,
-                            height: `${(timeToMinutes(booking.endTime) - timeToMinutes(booking.startTime)) / 30 * 40}px`
+                            height: `${(timeToMinutes(booking.endTime) - timeToMinutes(booking.startTime)) / 30 * 28}px`
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -123,16 +124,21 @@ export function BookingCalendar({ courts, selectedDate, bookings, onSlotClick, o
                           }}
                         >
                           <div>
-                            <div className="font-semibold">{booking.comment}</div>
-                            <div className="text-xs opacity-90 mt-1">{booking.startTime} - {booking.endTime}</div>
+                            <div className="font-semibold flex items-center gap-1">
+                              {booking.status === 'hold' && (
+                                <Clock className="w-3 h-3 shrink-0 opacity-90" title="Ожидает оплаты" />
+                              )}
+                              <span className="truncate">{booking.comment}</span>
+                            </div>
+                            <div className="text-[10px] opacity-90 mt-0.5">{booking.startTime} - {booking.endTime}</div>
                           </div>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              onDeleteBooking(booking.id);
+                              onCancelBooking(booking);
                             }}
                             className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 hover:bg-white/30 rounded p-1"
-                            aria-label="Удалить бронирование"
+                            aria-label="Отменить бронирование"
                           >
                             <X className="w-3 h-3" />
                           </button>

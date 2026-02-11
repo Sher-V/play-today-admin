@@ -68,9 +68,17 @@
   color: var(--color-gray-600, #4b5563);
 }
 
+.registration-page .registration-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--color-gray-500, #6b7280);
+}
+
 .registration-page input[type="text"],
 .registration-page input[type="email"],
 .registration-page input[type="password"],
+.registration-page input[type="url"],
 .registration-page input[type="number"],
 .registration-page input[type="time"] {
   width: 100%;

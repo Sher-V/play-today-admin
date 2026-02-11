@@ -33,6 +33,7 @@ export function RegistrationForm({ onRegistered }: RegistrationFormProps) {
     name: '',
     email: '',
     city: '',
+    yandexMapsUrl: '',
     password: '',
     courtsCount: 1,
     openingTime: '08:00',
@@ -233,6 +234,18 @@ export function RegistrationForm({ onRegistered }: RegistrationFormProps) {
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                 placeholder="Например: Москва"
               />
+            </div>
+
+            <div>
+              <label htmlFor="yandexMapsUrl">Ссылка на Яндекс.Карты</label>
+              <input
+                id="yandexMapsUrl"
+                type="url"
+                value={formData.yandexMapsUrl ?? ''}
+                onChange={(e) => setFormData({ ...formData, yandexMapsUrl: e.target.value })}
+                placeholder="https://yandex.ru/maps/..."
+              />
+              <span className="registration-hint">Укажите ссылку на место клуба в Яндекс.Картах (по желанию)</span>
             </div>
 
             <div>

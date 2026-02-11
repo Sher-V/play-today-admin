@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Navigate, Link, useSearchParams } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirebaseAuth } from '../lib/firebase';
 import { getStoredClub, saveClub, clearClub } from '../lib/clubStorage';
@@ -8,7 +8,6 @@ import {
   getBookings,
   addBookingToFirestore,
   updateBookingInFirestore,
-  deleteBookingFromFirestore,
 } from '../lib/bookingsFirestore';
 import type { ClubData } from '../lib/clubStorage';
 import type { CourtDoc } from '../types/club-slots';
@@ -20,19 +19,72 @@ import { WeeklySchedule } from '../components/WeeklySchedule';
 import { ChevronLeft, ChevronRight, Calendar, CalendarDays, LogOut, User } from 'lucide-react';
 import type { Booking } from '../App';
 
+const today = () => new Date().toISOString().split('T')[0];
+
+function parseDateFromUrl(search: string): string | null {
+  const params = new URLSearchParams(search);
+  const d = params.get('date');
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  const parsed = new Date(d);
+  return isNaN(parsed.getTime()) ? null : d;
+}
+
+function parseViewFromUrl(search: string): 'day' | 'week' {
+  const params = new URLSearchParams(search);
+  const v = params.get('view');
+  return v === 'week' ? 'week' : 'day';
+}
+
 export function MainPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [user, setUser] = useState<{ uid: string } | null>(null);
   const [club, setClub] = useState<ClubData | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
   const [courts, setCourts] = useState<CourtDoc[]>([]);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [selectedDate, setSelectedDateState] = useState(() =>
+    parseDateFromUrl(window.location.search) ?? today()
+  );
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ courtId: string; time: string; duration?: number; date?: string } | null>(null);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
-  const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+  const [viewMode, setViewModeState] = useState<'day' | 'week'>(() =>
+    parseViewFromUrl(window.location.search)
+  );
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
+  const [bookingToCancel, setBookingToCancel] = useState<Booking | null>(null);
+  const [cancelInProgress, setCancelInProgress] = useState(false);
+
+  const setSelectedDate = useCallback(
+    (date: string) => {
+      setSelectedDateState(date);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('date', date);
+        const view = prev.get('view');
+        if (view === 'day' || view === 'week') next.set('view', view);
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
+  const setViewMode = useCallback(
+    (mode: 'day' | 'week') => {
+      setViewModeState(mode);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('view', mode);
+        const date = prev.get('date');
+        if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) next.set('date', date);
+        else next.set('date', today());
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -82,25 +134,55 @@ export function MainPage() {
     if (!club?.clubId) {
       setCourts([]);
       setBookings([]);
+      setScheduleLoading(false);
       return;
     }
     let cancelled = false;
+    setScheduleLoading(true);
     (async () => {
-      let courtsList = await getCourts(club.clubId!);
-      if (cancelled) return;
-      if (courtsList.length === 0 && (club.courtsCount ?? 0) > 0) {
-        courtsList = await ensureCourts(club.clubId!, club.courtsCount!);
+      try {
+        let courtsList = await getCourts(club.clubId!);
         if (cancelled) return;
+        if (courtsList.length === 0 && (club.courtsCount ?? 0) > 0) {
+          courtsList = await ensureCourts(club.clubId!, club.courtsCount!);
+          if (cancelled) return;
+        }
+        setCourts(courtsList);
+        const list = await getBookings(club.clubId!, courtsList);
+        if (cancelled) return;
+        setBookings(list);
+      } finally {
+        if (!cancelled) setScheduleLoading(false);
       }
-      setCourts(courtsList);
-      const list = await getBookings(club.clubId!, courtsList);
-      if (cancelled) return;
-      setBookings(list);
     })();
     return () => {
       cancelled = true;
     };
   }, [club?.clubId, club?.courtsCount]);
+
+  // При первой загрузке без параметров — записать текущую дату и вид в URL
+  useEffect(() => {
+    if (!searchParams.get('date') && !searchParams.get('view')) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('date', selectedDate);
+          next.set('view', viewMode);
+          return next;
+        },
+        { replace: true }
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Синхронизация даты и режима просмотра с URL (при переходе назад/вперёд по истории)
+  // Базовый URL без параметра date — всегда показываем сегодня
+  useEffect(() => {
+    const dateFromUrl = parseDateFromUrl(searchParams.toString());
+    setSelectedDateState(dateFromUrl ?? today());
+    setViewModeState(parseViewFromUrl(searchParams.toString()));
+  }, [searchParams]);
 
   const handleLogout = () => {
     const auth = getFirebaseAuth();
@@ -109,6 +191,27 @@ export function MainPage() {
     setClub(null);
     setUser(null);
   };
+
+  // Список кортов и прайс по кортам — считаем до любых return, чтобы порядок хуков не менялся
+  const courtNames = useMemo(
+    () =>
+      courts.length > 0
+        ? courts.map((c) => c.name)
+        : Array.from({ length: club?.courtsCount || 1 }, (_, i) => `Корт ${i + 1}`),
+    [courts, club?.courtsCount]
+  );
+  const pricingByCourt = useMemo(() => {
+    const r: Record<string, import('../lib/clubStorage').ClubData['pricing']> = {};
+    courtNames.forEach((name) => {
+      const court = courts.find((c) => c.name === name);
+      r[name] = court?.pricing ?? club?.pricing ?? undefined;
+    });
+    return r;
+  }, [courts, club?.pricing, courtNames]);
+  const visibleBookings = useMemo(
+    () => bookings.filter((b) => b.status !== 'canceled'),
+    [bookings]
+  );
 
   if (!authChecked) {
     return (
@@ -134,12 +237,6 @@ export function MainPage() {
       </div>
     );
   }
-
-  // Список кортов: из Firestore (courts) или по количеству из клуба (Корт 1, Корт 2, ...)
-  const courtNames =
-    courts.length > 0
-      ? courts.map((c) => c.name)
-      : Array.from({ length: club.courtsCount || 1 }, (_, i) => `Корт ${i + 1}`);
 
   const handleSlotClick = (courtId: string, time: string, duration?: number, date?: string) => {
     setSelectedSlot({ courtId, time, duration, date });
@@ -190,7 +287,7 @@ export function MainPage() {
 
       while (currentDate <= endDate) {
         const dateStr = currentDate.toISOString().split('T')[0];
-        const hasConflict = bookings.some(b => {
+        const hasConflict = visibleBookings.some(b => {
           if (b.courtId !== booking.courtId || b.date !== dateStr) return false;
           const existingStart = parseInt(b.startTime.replace(':', ''));
           const existingEnd = parseInt(b.endTime.replace(':', ''));
@@ -227,7 +324,7 @@ export function MainPage() {
       return;
     }
 
-    const hasConflict = bookings.some(b => {
+    const hasConflict = visibleBookings.some(b => {
       if (b.courtId !== booking.courtId || b.date !== booking.date) return false;
       const existingStart = parseInt(b.startTime.replace(':', ''));
       const existingEnd = parseInt(b.endTime.replace(':', ''));
@@ -273,28 +370,41 @@ export function MainPage() {
     setEditingBooking(null);
   };
 
-  const handleDeleteBooking = async (id: string) => {
-    if (!club?.clubId) return;
+  const handleCancelBookingFromCalendar = async (booking: Booking) => {
+    if (!club?.clubId || courts.length === 0) return;
     try {
-      await deleteBookingFromFirestore(club.clubId, id);
-      setBookings(bookings.filter(b => b.id !== id));
+      const payload: Omit<Booking, 'id'> = {
+        courtId: booking.courtId,
+        date: booking.date,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        activity: booking.activity,
+        comment: booking.comment,
+        color: booking.color,
+        isRecurring: booking.isRecurring,
+        recurringEndDate: booking.recurringEndDate,
+        status: 'canceled',
+      };
+      await updateBookingInFirestore(club.clubId, booking.id, payload, courts);
+      await loadBookings();
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : 'Не удалось удалить бронь.');
+      alert(e instanceof Error ? e.message : 'Не удалось отменить бронь.');
     }
   };
 
   const handleDateChange = (direction: 'prev' | 'next') => {
     const currentDate = new Date(selectedDate);
-    currentDate.setDate(currentDate.getDate() + (direction === 'prev' ? -7 : 7));
+    const step = viewMode === 'day' ? 1 : 7;
+    currentDate.setDate(currentDate.getDate() + (direction === 'prev' ? -step : step));
     setSelectedDate(currentDate.toISOString().split('T')[0]);
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-6 flex items-center justify-between gap-4 flex-wrap">
-          <h1 className="mb-6">Управление бронированием кортов</h1>
+      <div className="max-w-7xl mx-auto p-4">
+        <div className="mb-3 flex items-center justify-between gap-4 flex-wrap">
+          <h1 className="mb-3 text-xl">Управление бронированием кортов</h1>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600 truncate max-w-[200px]" title={club.name}>
               {club.name}
@@ -310,7 +420,7 @@ export function MainPage() {
             <button
               type="button"
               onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
               title="Выйти"
             >
               <LogOut className="w-4 h-4" />
@@ -318,11 +428,12 @@ export function MainPage() {
             </button>
           </div>
         </div>
-        <div className="mb-6 -mt-2">
+        <div className="mb-3 -mt-1">
           <div>
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-2">
               <button
-                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                type="button"
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 cursor-pointer ${
                   viewMode === 'day' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 hover:bg-gray-50'
                 }`}
                 onClick={() => setViewMode('day')}
@@ -331,7 +442,8 @@ export function MainPage() {
                 <span>Дневной вид</span>
               </button>
               <button
-                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                type="button"
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 cursor-pointer ${
                   viewMode === 'week' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 hover:bg-gray-50'
                 }`}
                 onClick={() => setViewMode('week')}
@@ -342,13 +454,14 @@ export function MainPage() {
             </div>
 
             {viewMode === 'day' && (
-              <div className="flex items-center gap-4 mb-3">
+              <div className="flex items-center gap-4 mb-2">
                 <button
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  type="button"
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 cursor-pointer"
                   onClick={() => handleDateChange('prev')}
                 >
                   <ChevronLeft className="w-5 h-5" />
-                  <span>Предыдущая неделя</span>
+                  <span>Предыдущий день</span>
                 </button>
                 <div className="flex-1 text-center">
                   <div className="flex items-center justify-center gap-2">
@@ -357,35 +470,48 @@ export function MainPage() {
                   </div>
                 </div>
                 <button
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  type="button"
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 cursor-pointer"
                   onClick={() => handleDateChange('next')}
                 >
-                  <span>Следующая неделя</span>
+                  <span>Следующий день</span>
                   <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
             )}
           </div>
 
-          {viewMode === 'day' ? (
-            <BookingCalendar
-              courts={courtNames}
-              selectedDate={selectedDate}
-              bookings={bookings}
-              onSlotClick={handleSlotClick}
-              onDeleteBooking={handleDeleteBooking}
-              onBookingClick={handleBookingClick}
-            />
-          ) : (
-            <WeeklySchedule
-              courts={courtNames}
-              selectedDate={selectedDate}
-              bookings={bookings}
-              onWeekChange={handleDateChange}
-              onBookingClick={handleBookingClick}
-              onSlotClick={handleSlotClick}
-            />
-          )}
+          <div className="relative">
+            {viewMode === 'day' ? (
+              <BookingCalendar
+                courts={courtNames}
+                selectedDate={selectedDate}
+                bookings={visibleBookings}
+                onSlotClick={handleSlotClick}
+                onCancelBooking={(b) => setBookingToCancel(b)}
+                onBookingClick={handleBookingClick}
+              />
+            ) : (
+              <WeeklySchedule
+                courts={courtNames}
+                selectedDate={selectedDate}
+                bookings={visibleBookings}
+                onWeekChange={handleDateChange}
+                onBookingClick={handleBookingClick}
+                onSlotClick={handleSlotClick}
+              />
+            )}
+            {scheduleLoading && (
+              <div
+                className="absolute inset-0 flex items-center justify-center bg-white/80 rounded-lg pointer-events-auto"
+                style={{ zIndex: 9999 }}
+                aria-busy="true"
+                aria-label="Загрузка"
+              >
+                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
 
           {modalOpen && (selectedSlot || editingBooking || paymentLink) && (
             <BookingModal
@@ -396,10 +522,62 @@ export function MainPage() {
               initialDuration={selectedSlot?.duration}
               existingBooking={editingBooking || undefined}
               paymentLink={paymentLink}
-              pricing={club?.pricing ?? null}
+              pricingByCourt={pricingByCourt}
               onClose={handleCloseModal}
               onSave={handleAddBooking}
+              onRequestCancelBooking={(booking) => {
+                setBookingToCancel(booking);
+                handleCloseModal();
+              }}
             />
+          )}
+
+          {bookingToCancel !== null && (
+            <div
+              className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 overflow-y-auto"
+              style={{ zIndex: 10000 }}
+              onClick={() => !cancelInProgress && setBookingToCancel(null)}
+            >
+              <div
+                className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 text-center relative"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {cancelInProgress && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/90 rounded-lg z-10">
+                    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-label="Загрузка" />
+                  </div>
+                )}
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">Отменить бронирование?</h2>
+                <p className="text-sm text-gray-600 mb-6">Вы действительно хотите отменить бронирование?</p>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    type="button"
+                    disabled={cancelInProgress}
+                    onClick={() => setBookingToCancel(null)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    Нет
+                  </button>
+                  <button
+                    type="button"
+                    disabled={cancelInProgress}
+                    onClick={async () => {
+                      if (!bookingToCancel) return;
+                      setCancelInProgress(true);
+                      try {
+                        await handleCancelBookingFromCalendar(bookingToCancel);
+                        setBookingToCancel(null);
+                      } finally {
+                        setCancelInProgress(false);
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    Да
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>

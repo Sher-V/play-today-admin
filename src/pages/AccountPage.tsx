@@ -37,6 +37,7 @@ export function AccountPage() {
   const [club, setClub] = useState<ClubData | null>(null);
   const [loading, setLoading] = useState(true);
   const [courtsCount, setCourtsCount] = useState(1);
+  const [yandexMapsUrl, setYandexMapsUrl] = useState('');
   const [openingTime, setOpeningTime] = useState('08:00');
   const [closingTime, setClosingTime] = useState('22:00');
   const [pricing, setPricing] = useState<ClubPricing>(() => defaultPricing('08:00', '22:00'));
@@ -70,6 +71,7 @@ export function AccountPage() {
         setClub(stored);
         if (stored) {
           setCourtsCount(stored.courtsCount ?? 1);
+          setYandexMapsUrl(stored.yandexMapsUrl ?? '');
           setOpeningTime(stored.openingTime ?? '08:00');
           setClosingTime(stored.closingTime ?? '22:00');
           setPricing(
@@ -122,6 +124,7 @@ export function AccountPage() {
     try {
       await updateClubInFirestore(club.clubId, {
         courtsCount,
+        yandexMapsUrl: yandexMapsUrl.trim(),
         openingTime,
         closingTime,
         pricing,
@@ -129,6 +132,7 @@ export function AccountPage() {
       const updated: ClubData = {
         ...club,
         courtsCount,
+        yandexMapsUrl: yandexMapsUrl.trim() || undefined,
         openingTime,
         closingTime,
         pricing,
@@ -244,7 +248,7 @@ export function AccountPage() {
       <div className="account-page__inner">
         <header className="account-page__header">
           <h1 className="account-page__title">Аккаунт</h1>
-          <Link to="/" className="account-page__back">
+          <Link to="/dashboard" className="account-page__back">
             ← Назад к расписанию
           </Link>
         </header>
@@ -266,6 +270,18 @@ export function AccountPage() {
                 value={courtsCount}
                 onChange={(e) => setCourtsCount(Number(e.target.value) || 1)}
               />
+            </div>
+
+            <div className="account-page__field">
+              <label htmlFor="account-yandex-maps">Ссылка на Яндекс.Карты</label>
+              <input
+                id="account-yandex-maps"
+                type="url"
+                value={yandexMapsUrl}
+                onChange={(e) => setYandexMapsUrl(e.target.value)}
+                placeholder="https://yandex.ru/maps/..."
+              />
+              <span className="account-page__hint">Ссылка на место клуба в Яндекс.Картах (по желанию)</span>
             </div>
 
             <div className="account-page__field">
@@ -318,7 +334,7 @@ export function AccountPage() {
             <div className="account-page__actions">
               <button
                 type="button"
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/dashboard')}
                 className="account-page__btn account-page__btn--secondary"
               >
                 Отмена

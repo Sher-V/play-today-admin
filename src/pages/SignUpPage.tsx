@@ -14,7 +14,7 @@ export function SignUpPage() {
     const auth = getFirebaseAuth();
     if (!auth) return;
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) navigate('/', { replace: true });
+      if (user) navigate('/dashboard', { replace: true });
     });
     return () => unsub();
   }, [navigate]);
@@ -22,7 +22,7 @@ export function SignUpPage() {
   const handleRegistered = async (data: ClubData, userId: string) => {
     const clubId = await saveClubToFirestore(data, userId);
     saveClub({ ...data, clubId });
-    navigate('/', { replace: true });
+    navigate('/dashboard', { replace: true });
   };
 
   return <RegistrationForm onRegistered={handleRegistered} />;

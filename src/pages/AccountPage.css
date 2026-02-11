@@ -85,14 +85,26 @@
 }
 
 .account-page__field input[type="number"],
-.account-page__field input[type="time"] {
+.account-page__field input[type="time"],
+.account-page__field input[type="url"] {
   width: 100%;
-  max-width: 8rem;
   padding: 0.625rem 0.875rem;
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
   font-size: 1rem;
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.account-page__field input[type="number"],
+.account-page__field input[type="time"] {
+  max-width: 8rem;
+}
+
+.account-page__hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
 }
 
 .account-page__field input:focus {

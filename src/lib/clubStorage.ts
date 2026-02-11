@@ -8,6 +8,8 @@ export interface ClubData {
   name: string;
   email: string;
   city?: string;
+  /** Ссылка на место клуба в Яндекс.Картах */
+  yandexMapsUrl?: string;
   courtsCount: number;
   openingTime: string;
   closingTime: string;

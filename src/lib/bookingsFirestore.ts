@@ -77,6 +77,7 @@ export async function getBookings(clubId: string, courts: CourtDoc[]): Promise<B
     const activity = typeToActivity(data.type ?? 'one_time');
     const courtName = courtById.get(data.courtId as string) ?? (data.courtId as string);
 
+    const status = data.status as 'hold' | 'confirmed' | 'canceled' | undefined;
     return {
       id: d.id,
       courtId: courtName,
@@ -86,6 +87,7 @@ export async function getBookings(clubId: string, courts: CourtDoc[]): Promise<B
       activity,
       comment: (data.comment as string) ?? '',
       color: getColorForActivity(activity),
+      ...(status && (status === 'hold' || status === 'confirmed' || status === 'canceled') ? { status } : {}),
     } as Booking;
   });
 }
@@ -112,7 +114,7 @@ export async function addBookingToFirestore(
   const endTime = toTimestamp(booking.date, booking.endTime);
   const type = activityToType(booking.activity);
 
-  const ref = await addDoc(collection(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_BOOKINGS), {
+  const payload: Record<string, unknown> = {
     courtId: courtDocId,
     type,
     startTime,
@@ -120,7 +122,11 @@ export async function addBookingToFirestore(
     comment: booking.comment ?? '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  };
+  if (booking.status && (booking.status === 'hold' || booking.status === 'confirmed' || booking.status === 'canceled')) {
+    payload.status = booking.status;
+  }
+  const ref = await addDoc(collection(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_BOOKINGS), payload);
 
   return ref.id;
 }
@@ -142,15 +148,19 @@ export async function updateBookingInFirestore(
   const endTime = toTimestamp(booking.date, booking.endTime);
   const type = activityToType(booking.activity);
 
-  const docRef = doc(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_BOOKINGS, bookingId);
-  await updateDoc(docRef, {
+  const payload: Record<string, unknown> = {
     courtId: courtDocId,
     type,
     startTime,
     endTime,
     comment: booking.comment ?? '',
     updatedAt: serverTimestamp(),
-  });
+  };
+  if (booking.status && (booking.status === 'hold' || booking.status === 'confirmed' || booking.status === 'canceled')) {
+    payload.status = booking.status;
+  }
+  const docRef = doc(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_BOOKINGS, bookingId);
+  await updateDoc(docRef, payload);
 }
 
 /** Удалить бронь из Firestore. */

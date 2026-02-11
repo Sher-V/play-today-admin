@@ -13,7 +13,7 @@ export function SignInPage() {
     const auth = getFirebaseAuth();
     if (!auth) return;
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) navigate('/', { replace: true });
+      if (user) navigate('/dashboard', { replace: true });
     });
     return () => unsub();
   }, [navigate]);
@@ -27,7 +27,7 @@ export function SignInPage() {
     const club = await getClubByUserIdOrEmail(user.uid, user.email ?? email);
       if (!club) throw new Error('Клуб не найден для этого аккаунта. Зарегистрируйте клуб.');
       saveClub(club);
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
       if (code === 'auth/configuration-not-found') {

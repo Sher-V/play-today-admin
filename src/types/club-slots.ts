@@ -34,6 +34,8 @@ export interface CourtDoc {
   id: string;
   name: string;
   order?: number;
+  /** Прайс корта (если задан — используется для расчёта суммы; иначе берётся прайс клуба) */
+  pricing?: ClubPricing;
   createdAt?: unknown;
   updatedAt?: unknown;
 }

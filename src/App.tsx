@@ -4,6 +4,9 @@ import { SignUpPage } from './pages/SignUpPage';
 import { MainPage } from './pages/MainPage';
 import { AccountPage } from './pages/AccountPage';
 
+/** Статус брони: hold — ожидает оплаты, confirmed — оплачена, canceled — отменена */
+export type BookingStatus = 'hold' | 'confirmed' | 'canceled';
+
 export interface Booking {
   id: string;
   courtId: string;
@@ -15,6 +18,8 @@ export interface Booking {
   color: string;
   isRecurring?: boolean;
   recurringEndDate?: string;
+  /** Статус: confirmed — оплачена, hold — ожидает оплаты, canceled — отменена */
+  status?: BookingStatus;
 }
 
 export const activityTypes = [
@@ -27,9 +32,10 @@ export const activityTypes = [
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/dashboard" element={<MainPage />} />
       <Route path="/signin" element={<SignInPage />} />
       <Route path="/signup" element={<SignUpPage />} />
-      <Route path="/" element={<MainPage />} />
       <Route path="/account" element={<AccountPage />} />
       <Route path="*" element={<Navigate to="/signin" replace />} />
     </Routes>
