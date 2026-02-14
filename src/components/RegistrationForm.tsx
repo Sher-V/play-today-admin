@@ -326,11 +326,12 @@ export function RegistrationForm({ onRegistered }: RegistrationFormProps) {
               <input
                 id="yandexMapsUrl"
                 type="url"
+                required
                 value={formData.yandexMapsUrl ?? ''}
                 onChange={(e) => setFormData({ ...formData, yandexMapsUrl: e.target.value })}
                 placeholder="https://yandex.ru/maps/..."
               />
-              <span className="registration-hint">Укажите ссылку на место клуба в Яндекс.Картах (по желанию)</span>
+              <span className="registration-hint">Укажите ссылку на место клуба в Яндекс.Картах</span>
             </div>
 
             <div>
