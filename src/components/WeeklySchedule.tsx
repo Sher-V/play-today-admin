@@ -1,34 +1,28 @@
+import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { Booking } from '../App';
-import { useState } from 'react';
+import { generateTimeSlots } from '../lib/timeSlots';
 
 interface WeeklyScheduleProps {
   courts: string[];
   selectedDate: string;
   bookings: Booking[];
+  /** Время открытия клуба (например, "08:00"). */
+  openingTime: string;
+  /** Время закрытия клуба (например, "22:00"). */
+  closingTime: string;
   onWeekChange: (direction: 'prev' | 'next') => void;
   onBookingClick: (booking: Booking) => void;
   onSlotClick: (courtId: string, time: string, duration?: number, date?: string) => void;
 }
 
-export function WeeklySchedule({ courts, selectedDate, bookings, onWeekChange, onBookingClick, onSlotClick }: WeeklyScheduleProps) {
+export function WeeklySchedule({ courts, selectedDate, bookings, openingTime, closingTime, onWeekChange, onBookingClick, onSlotClick }: WeeklyScheduleProps) {
   const [selectedCourt, setSelectedCourt] = useState<string | 'all'>('all');
   
-  // All time slots for calculations
-  const timeSlots = [
-    '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30',
-    '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-    '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
-    '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', 
-    '22:00', '22:30', '23:00', '23:30'
-  ];
-
-  // Only hourly slots for display
-  const hourlyTimeSlots = [
-    '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00',
-    '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', 
-    '22:00', '23:00'
-  ];
+  const { timeSlots, hourlyTimeSlots } = useMemo(
+    () => generateTimeSlots(openingTime, closingTime),
+    [openingTime, closingTime]
+  );
 
   // Calculate Monday of the current week
   const getMonday = (dateStr: string) => {
@@ -189,7 +183,7 @@ export function WeeklySchedule({ courts, selectedDate, bookings, onWeekChange, o
                               >
                                 {booking && isFirstSlot && (
                                   <div
-                                    className="absolute inset-0 text-white text-[8px] px-0.5 flex items-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity z-10"
+                                    className="absolute top-0 left-0 right-0 text-white text-[8px] px-0.5 flex items-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity z-10"
                                     style={{ 
                                       backgroundColor: booking.color,
                                       height: `${(timeToMinutes(booking.endTime) - timeToMinutes(booking.startTime)) / 30 * 14}px`

@@ -1,26 +1,43 @@
+import { useMemo } from 'react';
 import { Booking } from '../App';
 import { X, Clock } from 'lucide-react';
 import { useState } from 'react';
+import { generateTimeSlots } from '../lib/timeSlots';
 
 interface BookingCalendarProps {
   courts: string[];
   selectedDate: string;
   bookings: Booking[];
+  /** Время открытия клуба (например, "08:00"). */
+  openingTime: string;
+  /** Время закрытия клуба (например, "22:00"). */
+  closingTime: string;
   onSlotClick: (courtId: string, time: string, duration?: number) => void;
   /** Отменить бронь (перевести в статус canceled). Вызывается после подтверждения пользователя. */
   onCancelBooking: (booking: Booking) => void;
   onBookingClick: (booking: Booking) => void;
 }
 
-const timeSlots = [
-  '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30',
-  '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-  '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
-  '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', 
-  '22:00', '22:30', '23:00', '23:30'
-];
+/** Высота одного ряда (1 час) в пикселях. */
+const ROW_HEIGHT_PX = 28;
+/** Высота бордера строки (border-b). */
+const ROW_BORDER_PX = 1;
+/** Высота верхнего бордера (border-t-2) у рядов. */
+const ROW_TOP_BORDER_PX = 2;
+/** Полная высота одного ряда = контент + бордеры. */
+const ROW_TOTAL_PX = ROW_TOP_BORDER_PX + ROW_HEIGHT_PX + ROW_BORDER_PX;
 
-export function BookingCalendar({ courts, selectedDate, bookings, onSlotClick, onCancelBooking, onBookingClick }: BookingCalendarProps) {
+/** Считает суммарную высоту N получасовых слотов (учёт рядов по 1 часу и бордеров). */
+function getSlotsHeight(_startIndex: number, slotCount: number): number {
+  const hourCount = slotCount / 2;
+  return hourCount * ROW_TOTAL_PX;
+}
+
+export function BookingCalendar({ courts, selectedDate, bookings, openingTime, closingTime, onSlotClick, onCancelBooking, onBookingClick }: BookingCalendarProps) {
+  const { timeSlots, hourlyTimeSlots } = useMemo(
+    () => generateTimeSlots(openingTime, closingTime),
+    [openingTime, closingTime]
+  );
   const [dragStart, setDragStart] = useState<{ court: string; timeIndex: number } | null>(null);
   const [dragEnd, setDragEnd] = useState<{ court: string; timeIndex: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -92,66 +109,95 @@ export function BookingCalendar({ courts, selectedDate, bookings, onSlotClick, o
             ))}
           </div>
 
-          {/* Time Slots */}
-          {timeSlots.map((time, timeIndex) => {
-            const isFullHour = time.endsWith(':00');
+          {/* Time Slots: 1 ряд = 1 час */}
+          {hourlyTimeSlots.map((hour, hourIndex) => {
+            const slotIndex1 = hourIndex * 2;
+            const slotIndex2 = hourIndex * 2 + 1;
             return (
-              <div key={time} className={`grid border-b border-gray-100 hover:bg-gray-50 ${isFullHour ? 'border-t-2 border-t-gray-300' : ''}`} style={{ gridTemplateColumns: `100px repeat(${courts.length}, 1fr)` }}>
-                <div className={`py-1 px-2 text-xs ${isFullHour ? 'font-semibold text-gray-700 bg-gray-50' : 'font-normal text-gray-500 bg-gray-50/50'} border-r border-gray-200`}>
-                  {time}
+              <div key={hour} className="grid border-b border-gray-100 border-t-2 border-t-gray-300 hover:bg-gray-50" style={{ gridTemplateColumns: `100px repeat(${courts.length}, 1fr)`, gridTemplateRows: `${ROW_HEIGHT_PX}px` }}>
+                <div className="py-1 px-2 text-xs font-semibold text-gray-700 bg-gray-50 flex items-center border-r border-gray-200" style={{ minHeight: ROW_HEIGHT_PX }}>
+                  {hour}
                 </div>
-                {courts.map((court, idx) => {
-                  const booking = getBookingForSlot(court, time);
-                  const isFirstSlot = booking && booking.startTime === time;
-                  return (
-                    <div
-                      key={`${court}-${time}`}
-                      className={`relative border-r border-gray-200 last:border-r-0 h-7 cursor-pointer transition-colors ${!booking ? 'hover:bg-blue-50' : ''}`}
-                      onMouseDown={() => handleMouseDown(court, timeIndex, !!booking)}
-                      onMouseEnter={() => handleMouseEnter(court, timeIndex)}
-                      onClick={() => !booking && onSlotClick(court, time, 1)}
-                    >
-                      {booking && isFirstSlot && (
+                {courts.map((court) => (
+                  <div key={court} className="relative border-r border-gray-200 last:border-r-0" style={{ height: `${ROW_HEIGHT_PX}px` }}>
+                    {[slotIndex1, slotIndex2].filter(i => timeSlots[i] != null).map((timeIndex, i) => {
+                      const time = timeSlots[timeIndex];
+                      const booking = getBookingForSlot(court, time);
+                      const isFirstSlot = booking && booking.startTime === time;
+                      const slotHeight = ROW_HEIGHT_PX / 2;
+                      return (
                         <div
-                          className="absolute inset-0 rounded py-1 px-2 text-white text-xs flex flex-col justify-between group cursor-pointer z-10"
-                          style={{ 
-                            backgroundColor: booking.color,
-                            height: `${(timeToMinutes(booking.endTime) - timeToMinutes(booking.startTime)) / 30 * 28}px`
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onBookingClick(booking);
-                          }}
+                          key={time}
+                          className={`absolute left-0 right-0 cursor-pointer transition-colors ${!booking ? 'hover:bg-blue-50' : ''}`}
+                          style={{ top: `${i * slotHeight}px`, height: `${slotHeight}px` }}
+                          onMouseDown={() => handleMouseDown(court, timeIndex, !!booking)}
+                          onMouseEnter={() => handleMouseEnter(court, timeIndex)}
+                          onClick={() => !booking && onSlotClick(court, time, 1)}
                         >
-                          <div>
-                            <div className="font-semibold flex items-center gap-1">
-                              {booking.status === 'hold' && (
-                                <Clock className="w-3 h-3 shrink-0 opacity-90" title="Ожидает оплаты" />
+                          {booking && isFirstSlot && (() => {
+                            const durationSlots = (timeToMinutes(booking.endTime) - timeToMinutes(booking.startTime)) / 30;
+                            const isHalfHour = durationSlots === 1;
+                            return (
+                            <div
+                              className={`absolute top-0 left-0 right-0 rounded py-1 px-2 text-white text-xs group cursor-pointer z-10 overflow-hidden flex ${isHalfHour ? 'flex-row items-center gap-1.5' : 'flex-col justify-between'}`}
+                              style={{ 
+                                backgroundColor: booking.color,
+                                height: `${getSlotsHeight(timeIndex, durationSlots)}px`
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onBookingClick(booking);
+                              }}
+                            >
+                              {isHalfHour ? (
+                                <div className="min-w-0 flex items-center gap-1 truncate flex-1">
+                                  {booking.status === 'hold' && (
+                                    <Clock className="w-3 h-3 shrink-0 opacity-90" title="Ожидает оплаты" />
+                                  )}
+                                  <span className="font-semibold shrink-0">{booking.startTime}-{booking.endTime}</span>
+                                  <span className="truncate">{booking.comment}</span>
+                                </div>
+                              ) : (
+                              <div>
+                                <div className="text-xs font-semibold flex items-center gap-1">
+                                  {booking.status === 'hold' && (
+                                    <Clock className="w-3 h-3 shrink-0 opacity-90" title="Ожидает оплаты" />
+                                  )}
+                                  {booking.startTime} - {booking.endTime}
+                                </div>
+                                <div className="font-semibold truncate mt-0.5">{booking.comment}</div>
+                              </div>
                               )}
-                              <span className="truncate">{booking.comment}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onCancelBooking(booking);
+                                }}
+                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 hover:bg-white/30 rounded p-1 shrink-0"
+                                aria-label="Отменить бронирование"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
                             </div>
-                            <div className="text-[10px] opacity-90 mt-0.5">{booking.startTime} - {booking.endTime}</div>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onCancelBooking(booking);
-                            }}
-                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 hover:bg-white/30 rounded p-1"
-                            aria-label="Отменить бронирование"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
+                            );
+                          })()}
+                          {isInDragRange(court, timeIndex) && dragStart && dragEnd && (() => {
+                            const minIdx = Math.min(dragStart.timeIndex, dragEnd.timeIndex);
+                            const maxIdx = Math.max(dragStart.timeIndex, dragEnd.timeIndex);
+                            const isFirstInRange = timeIndex === minIdx;
+                            const rangeSlots = maxIdx - minIdx + 1;
+                            return isFirstInRange ? (
+                              <div
+                                className="absolute left-1 right-1 top-1 rounded bg-blue-400/50 border-2 border-blue-500 pointer-events-none z-10"
+                                style={{ height: `${getSlotsHeight(minIdx, rangeSlots) - 8}px` }}
+                              />
+                            ) : null;
+                          })()}
                         </div>
-                      )}
-                      {isInDragRange(court, timeIndex) && (
-                        <div
-                          className="absolute inset-1 rounded bg-blue-400/50 border-2 border-blue-500 pointer-events-none"
-                        />
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
             );
           })}

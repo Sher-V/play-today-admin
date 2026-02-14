@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { X, Copy, Link2 } from 'lucide-react';
 import { Booking, activityTypes } from '../App';
 import { DatePicker } from './DatePicker';
 import { getPriceForBooking, hasPricing } from '../lib/pricing';
+import { generateTimeSlots } from '../lib/timeSlots';
 import type { ClubPricing } from '../types/club-slots';
 
 export interface BookingSaveOptions {
@@ -15,6 +16,10 @@ interface BookingModalProps {
   courtId: string;
   time: string;
   date: string;
+  /** Время открытия клуба (например, "08:00"). */
+  openingTime?: string;
+  /** Время закрытия клуба (например, "22:00"). */
+  closingTime?: string;
   initialDuration?: number;
   existingBooking?: Booking;
   paymentLink?: string | null;
@@ -26,7 +31,7 @@ interface BookingModalProps {
   onRequestCancelBooking?: (booking: Booking) => void;
 }
 
-export function BookingModal({ courts, courtId, time, date, initialDuration, existingBooking, paymentLink, pricingByCourt, onClose, onSave, onRequestCancelBooking }: BookingModalProps) {
+export function BookingModal({ courts, courtId, time, date, openingTime = '08:00', closingTime = '22:00', initialDuration, existingBooking, paymentLink, pricingByCourt, onClose, onSave, onRequestCancelBooking }: BookingModalProps) {
   const calculateDuration = (start: string, end: string) => {
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
@@ -49,11 +54,15 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
 
   const pricing = pricingByCourt?.[selectedCourtId] ?? null;
 
-  const timeSlots = Array.from({ length: 36 }, (_, i) => {
-    const hour = Math.floor(i / 2) + 6;
-    const minute = i % 2 === 0 ? '00' : '30';
-    return `${hour.toString().padStart(2, '0')}:${minute}`;
-  });
+  const { timeSlots } = useMemo(
+    () => generateTimeSlots(openingTime, closingTime),
+    [openingTime, closingTime]
+  );
+
+  const timeToMinutes = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
 
   const calculateEndTime = (start: string, hours: number) => {
     const [h, m] = start.split(':').map(Number);
@@ -62,6 +71,15 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
     const endMinute = totalMinutes % 60;
     return `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
   };
+
+  const allDurations = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
+  const validDurations = useMemo(() => {
+    const closingMinutes = timeToMinutes(closingTime);
+    return allDurations.filter(h => {
+      const endTime = calculateEndTime(selectedTime, h);
+      return timeToMinutes(endTime) <= closingMinutes;
+    });
+  }, [selectedTime, closingTime]);
 
   const selectedActivity = activityTypes.find(a => a.name === activity) || activityTypes[0];
   const isRecurringType = activity === 'Группа' || activity === 'Регулярная бронь корта';
@@ -183,6 +201,19 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
     };
   }, []);
 
+  useEffect(() => {
+    if (timeSlots.length > 0 && !timeSlots.includes(selectedTime)) {
+      const fallback = timeSlots.includes(time) ? time : timeSlots[0];
+      setSelectedTime(fallback);
+    }
+  }, [time, timeSlots]);
+
+  useEffect(() => {
+    if (validDurations.length > 0 && !validDurations.includes(duration)) {
+      setDuration(Math.max(...validDurations));
+    }
+  }, [selectedTime, validDurations, duration]);
+
   // Экран «Бронирование создано» со ссылкой на оплату
   if (paymentLink) {
     return (
@@ -286,7 +317,7 @@ export function BookingModal({ courts, courtId, time, date, initialDuration, exi
                 onChange={(e) => setDuration(Number(e.target.value))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {[0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map(h => (
+                {validDurations.map(h => (
                   <option key={h} value={h}>{getDurationLabel(h)}</option>
                 ))}
               </select>

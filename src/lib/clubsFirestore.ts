@@ -89,8 +89,8 @@ function docToClubData(d: DocumentSnapshot): ClubData {
     city: data?.city ?? '',
     yandexMapsUrl: data?.yandexMapsUrl ?? '',
     courtsCount: Number(data?.courtsCount) || 1,
-    openingTime: data?.openingTime ?? '08:00',
-    closingTime: data?.closingTime ?? '22:00',
+    openingTime: data?.openingTime ?? '07:00',
+    closingTime: data?.closingTime ?? '23:00',
     ...(pricing && { pricing }),
   };
 }

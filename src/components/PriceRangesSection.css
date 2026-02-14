@@ -1,0 +1,146 @@
+/* Общий компонент блоков цен (Аккаунт и Регистрация) */
+.price-ranges {
+  margin-bottom: 1.5rem;
+  padding: 1rem 0.75rem;
+  background: #f8fdf9;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(40, 167, 69, 0.15);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.price-ranges:last-child {
+  margin-bottom: 0;
+}
+
+.price-ranges__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.price-ranges__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a3d1e;
+  margin: 0;
+}
+
+.price-ranges__btn-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.875rem;
+  font-size: 0.8125rem;
+  color: #28A745;
+  background: #fff;
+  border: 1px solid #28A745;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.price-ranges__btn-add:hover {
+  background: #28A745;
+  color: #fff;
+}
+
+.price-ranges__btn-add-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.price-ranges__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.price-ranges__row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: nowrap;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(40, 167, 69, 0.1);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.price-ranges__row:last-child {
+  border-bottom: none;
+}
+
+.price-ranges__time {
+  flex: 0 0 auto;
+  width: 3.75rem;
+  min-width: 0;
+  padding: 0.45rem 0.35rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  background: #fff;
+}
+
+.price-ranges__time:focus {
+  outline: none;
+  border-color: #28A745;
+}
+
+.price-ranges__dash {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.price-ranges__input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.price-ranges__input {
+  width: 2.75rem;
+  min-width: 0;
+  padding: 0.45rem 0.25rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.price-ranges__input:focus {
+  outline: none;
+  border-color: #28A745;
+}
+
+.price-ranges__currency {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.price-ranges__btn-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  color: #6b7280;
+  background: transparent;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.price-ranges__btn-remove:hover {
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.08);
+}
+
+.price-ranges__btn-remove-icon {
+  width: 1rem;
+  height: 1rem;
+}

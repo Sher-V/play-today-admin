@@ -1,24 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Clock, Plus, Trash2 } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { getFirebaseAuth } from '../lib/firebase';
 import { getStoredClub, saveClub } from '../lib/clubStorage';
 import { getClubByUserIdOrEmail, updateClubInFirestore } from '../lib/clubsFirestore';
 import type { ClubData } from '../lib/clubStorage';
 import type { ClubPricing, PriceSlot } from '../types/club-slots';
-import '../components/RegistrationForm.css';
+import { PriceRangesSection } from '../components/PriceRangesSection';
 import './AccountPage.css';
-
-const TIME_SLOTS = (() => {
-  const slots: string[] = [];
-  for (let h = 6; h <= 23; h++) {
-    slots.push(`${h.toString().padStart(2, '0')}:00`);
-    slots.push(`${h.toString().padStart(2, '0')}:30`);
-  }
-  slots.push('24:00');
-  return slots;
-})();
 
 const defaultPriceSlot = (open: string, close: string, price: number): PriceSlot => ({
   startTime: open,
@@ -38,9 +28,9 @@ export function AccountPage() {
   const [loading, setLoading] = useState(true);
   const [courtsCount, setCourtsCount] = useState(1);
   const [yandexMapsUrl, setYandexMapsUrl] = useState('');
-  const [openingTime, setOpeningTime] = useState('08:00');
-  const [closingTime, setClosingTime] = useState('22:00');
-  const [pricing, setPricing] = useState<ClubPricing>(() => defaultPricing('08:00', '22:00'));
+  const [openingTime, setOpeningTime] = useState('07:00');
+  const [closingTime, setClosingTime] = useState('23:00');
+  const [pricing, setPricing] = useState<ClubPricing>(() => defaultPricing('07:00', '23:00'));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -72,12 +62,12 @@ export function AccountPage() {
         if (stored) {
           setCourtsCount(stored.courtsCount ?? 1);
           setYandexMapsUrl(stored.yandexMapsUrl ?? '');
-          setOpeningTime(stored.openingTime ?? '08:00');
-          setClosingTime(stored.closingTime ?? '22:00');
+          setOpeningTime(stored.openingTime ?? '07:00');
+          setClosingTime(stored.closingTime ?? '23:00');
           setPricing(
             stored.pricing && (stored.pricing.weekday?.length > 0 || stored.pricing.weekend?.length > 0)
               ? stored.pricing
-              : defaultPricing(stored.openingTime ?? '08:00', stored.closingTime ?? '22:00')
+              : defaultPricing(stored.openingTime ?? '07:00', stored.closingTime ?? '23:00')
           );
         }
       } else {
@@ -147,71 +137,6 @@ export function AccountPage() {
       setIsSubmitting(false);
     }
   };
-
-  const renderPriceSection = (title: string, dayType: 'weekday' | 'weekend') => (
-    <div key={dayType} className="registration-price-section">
-      <div className="registration-price-section-header">
-        <h3 className="registration-price-title">{title}</h3>
-        <button
-          type="button"
-          className="registration-btn-add"
-          onClick={() => addSlot(dayType)}
-          aria-label="Добавить диапазон"
-        >
-          <Plus className="registration-btn-add-icon" />
-          Добавить диапазон
-        </button>
-      </div>
-      <div className="registration-price-list">
-        {pricing[dayType].map((slot, index) => (
-          <div key={index} className="registration-price-row">
-            <select
-              value={slot.startTime}
-              onChange={(e) => updateSlot(dayType, index, 'startTime', e.target.value)}
-              className="registration-price-time"
-              aria-label="Начало"
-            >
-              {TIME_SLOTS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-            <span className="registration-price-dash">—</span>
-            <select
-              value={slot.endTime}
-              onChange={(e) => updateSlot(dayType, index, 'endTime', e.target.value)}
-              className="registration-price-time"
-              aria-label="Конец"
-            >
-              {TIME_SLOTS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min={0}
-              step={50}
-              value={slot.priceRub}
-              onChange={(e) => updateSlot(dayType, index, 'priceRub', Number(e.target.value) || 0)}
-              className="registration-price-input"
-              placeholder="₽"
-              aria-label="Цена"
-            />
-            <span className="registration-price-currency">₽</span>
-            {pricing[dayType].length > 1 && (
-              <button
-                type="button"
-                className="registration-btn-remove"
-                onClick={() => removeSlot(dayType, index)}
-                aria-label="Удалить"
-              >
-                <Trash2 className="registration-btn-remove-icon" />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 
   if (loading) {
     return (
@@ -316,8 +241,20 @@ export function AccountPage() {
               <p className="account-page__pricing-hint">
                 Укажите диапазоны времени и цену. Можно добавить несколько диапазонов для разных периодов дня.
               </p>
-              {renderPriceSection('Будние дни (Пн–Пт)', 'weekday')}
-              {renderPriceSection('Выходные (Сб–Вс)', 'weekend')}
+              <PriceRangesSection
+                title="Будние дни (Пн–Пт)"
+                slots={pricing.weekday}
+                onAdd={() => addSlot('weekday')}
+                onRemove={(index) => removeSlot('weekday', index)}
+                onUpdateSlot={(index, field, value) => updateSlot('weekday', index, field, value)}
+              />
+              <PriceRangesSection
+                title="Выходные (Сб–Вс)"
+                slots={pricing.weekend}
+                onAdd={() => addSlot('weekend')}
+                onRemove={(index) => removeSlot('weekend', index)}
+                onUpdateSlot={(index, field, value) => updateSlot('weekend', index, field, value)}
+              />
             </div>
 
             {error && (

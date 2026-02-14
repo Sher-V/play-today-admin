@@ -1,21 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Clock, Plus, Trash2, ChevronLeft } from 'lucide-react';
+import { Clock, ChevronLeft, Search } from 'lucide-react';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { getFirebaseAuth } from '../lib/firebase';
+import { getRussiaCities } from '../lib/russiaCities';
 import type { ClubData } from '../lib/clubStorage';
 import type { ClubPricing, PriceSlot } from '../types/club-slots';
+import { PriceRangesSection } from './PriceRangesSection';
 import './RegistrationForm.css';
-
-const TIME_SLOTS = (() => {
-  const slots: string[] = [];
-  for (let h = 6; h <= 23; h++) {
-    slots.push(`${h.toString().padStart(2, '0')}:00`);
-    slots.push(`${h.toString().padStart(2, '0')}:30`);
-  }
-  slots.push('24:00');
-  return slots;
-})();
 
 const defaultPriceSlot = (open: string, close: string, price: number): PriceSlot => ({
   startTime: open,
@@ -36,15 +28,116 @@ export function RegistrationForm({ onRegistered }: RegistrationFormProps) {
     yandexMapsUrl: '',
     password: '',
     courtsCount: 1,
-    openingTime: '08:00',
-    closingTime: '22:00',
+    openingTime: '07:00',
+    closingTime: '23:00',
   });
   const [pricing, setPricing] = useState<ClubPricing>(() => ({
-    weekday: [defaultPriceSlot('08:00', '22:00', 1500)],
-    weekend: [defaultPriceSlot('08:00', '22:00', 2000)],
+    weekday: [defaultPriceSlot('07:00', '23:00', 1500)],
+    weekend: [defaultPriceSlot('07:00', '23:00', 2000)],
   }));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [cities, setCities] = useState<string[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(true);
+  const [citiesError, setCitiesError] = useState<string | null>(null);
+  const [cityInput, setCityInput] = useState('');
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  const [cityHighlightedIndex, setCityHighlightedIndex] = useState(0);
+  const cityDropdownRef = useRef<HTMLDivElement>(null);
+  const cityListRef = useRef<HTMLUListElement>(null);
+
+  const filteredCities = useMemo(() => {
+    const q = cityInput.trim().toLowerCase();
+    if (!q) return cities.slice(0, 80);
+    return cities
+      .filter((c) => c.toLowerCase().includes(q))
+      .slice(0, 50);
+  }, [cities, cityInput]);
+
+  useEffect(() => {
+    setCityInput(formData.city ?? '');
+  }, [formData.city]);
+
+  useEffect(() => {
+    setCityHighlightedIndex(0);
+  }, [cityInput]);
+
+  useEffect(() => {
+    const el = cityListRef.current;
+    if (!el || !cityDropdownOpen) return;
+    const item = el.children[cityHighlightedIndex] as HTMLElement;
+    item?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [cityHighlightedIndex, cityDropdownOpen]);
+
+  const handleCitySelect = (name: string) => {
+    setFormData((prev) => ({ ...prev, city: name }));
+    setCityInput(name);
+    setCityDropdownOpen(false);
+  };
+
+  const handleCityKeyDown = (e: React.KeyboardEvent) => {
+    if (!cityDropdownOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') setCityDropdownOpen(true);
+      return;
+    }
+    if (e.key === 'Escape') {
+      setCityDropdownOpen(false);
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setCityHighlightedIndex((i) => (i < filteredCities.length - 1 ? i + 1 : 0));
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setCityHighlightedIndex((i) => (i > 0 ? i - 1 : filteredCities.length - 1));
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const name = filteredCities[cityHighlightedIndex];
+      if (name) handleCitySelect(name);
+    }
+  };
+
+  useEffect(() => {
+    const cancelled = { current: false };
+    const handleClickOutside = (event: MouseEvent) => {
+      if (cancelled.current) return;
+      if (cityDropdownRef.current && !cityDropdownRef.current.contains(event.target as Node)) {
+        setCityDropdownOpen(false);
+        setFormData((prev) => ({ ...prev, city: cityInput }));
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      cancelled.current = true;
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [cityInput]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRussiaCities()
+      .then((list) => {
+        if (!cancelled) {
+          setCities(list);
+          setCitiesError(null);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setCitiesError(e instanceof Error ? e.message : 'Не удалось загрузить список городов');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCitiesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const goToStep2 = () => {
     setError('');
@@ -126,71 +219,6 @@ export function RegistrationForm({ onRegistered }: RegistrationFormProps) {
     }
   };
 
-  const renderPriceSection = (title: string, dayType: 'weekday' | 'weekend') => (
-    <div key={dayType} className="registration-price-section">
-      <div className="registration-price-section-header">
-        <h3 className="registration-price-title">{title}</h3>
-        <button
-          type="button"
-          className="registration-btn-add"
-          onClick={() => addSlot(dayType)}
-          aria-label="Добавить диапазон"
-        >
-          <Plus className="registration-btn-add-icon" />
-          Добавить диапазон
-        </button>
-      </div>
-      <div className="registration-price-list">
-        {pricing[dayType].map((slot, index) => (
-          <div key={index} className="registration-price-row">
-            <select
-              value={slot.startTime}
-              onChange={(e) => updateSlot(dayType, index, 'startTime', e.target.value)}
-              className="registration-price-time"
-              aria-label="Начало"
-            >
-              {TIME_SLOTS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-            <span className="registration-price-dash">—</span>
-            <select
-              value={slot.endTime}
-              onChange={(e) => updateSlot(dayType, index, 'endTime', e.target.value)}
-              className="registration-price-time"
-              aria-label="Конец"
-            >
-              {TIME_SLOTS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min={0}
-              step={50}
-              value={slot.priceRub}
-              onChange={(e) => updateSlot(dayType, index, 'priceRub', Number(e.target.value) || 0)}
-              className="registration-price-input"
-              placeholder="₽"
-              aria-label="Цена"
-            />
-            <span className="registration-price-currency">₽</span>
-            {pricing[dayType].length > 1 && (
-              <button
-                type="button"
-                className="registration-btn-remove"
-                onClick={() => removeSlot(dayType, index)}
-                aria-label="Удалить"
-              >
-                <Trash2 className="registration-btn-remove-icon" />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   return (
     <div className="registration-page">
       <div className="registration-card">
@@ -225,15 +253,72 @@ export function RegistrationForm({ onRegistered }: RegistrationFormProps) {
               />
             </div>
 
-            <div>
+            <div ref={cityDropdownRef} className="registration-city-search">
               <label htmlFor="city">Город</label>
-              <input
-                id="city"
-                type="text"
-                value={formData.city ?? ''}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                placeholder="Например: Москва"
-              />
+              {citiesError ? (
+                <input
+                  id="city"
+                  type="text"
+                  value={formData.city ?? ''}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  placeholder="Например: Москва"
+                  title={citiesError}
+                />
+              ) : (
+                <>
+                  <div className="registration-city-input-wrap">
+                    <Search className="registration-city-icon" aria-hidden />
+                    <input
+                      id="city"
+                      type="text"
+                      value={cityInput}
+                      onChange={(e) => {
+                        setCityInput(e.target.value);
+                        setCityDropdownOpen(true);
+                      }}
+                      onFocus={() => setCityDropdownOpen(true)}
+                      onKeyDown={handleCityKeyDown}
+                      placeholder={citiesLoading ? 'Загрузка городов...' : 'Начните вводить название города'}
+                      disabled={citiesLoading}
+                      autoComplete="off"
+                      role="combobox"
+                      aria-expanded={cityDropdownOpen}
+                      aria-autocomplete="list"
+                      aria-controls="city-list"
+                      aria-activedescendant={cityDropdownOpen && filteredCities[cityHighlightedIndex] ? `city-opt-${cityHighlightedIndex}` : undefined}
+                    />
+                  </div>
+                  {cityDropdownOpen && !citiesLoading && (
+                    <ul
+                      id="city-list"
+                      ref={cityListRef}
+                      className="registration-city-dropdown"
+                      role="listbox"
+                    >
+                      {filteredCities.length === 0 ? (
+                        <li className="registration-city-empty">Ничего не найдено</li>
+                      ) : (
+                        filteredCities.map((name, idx) => (
+                          <li
+                            key={name}
+                            id={`city-opt-${idx}`}
+                            role="option"
+                            aria-selected={idx === cityHighlightedIndex}
+                            className={`registration-city-option ${idx === cityHighlightedIndex ? 'registration-city-option--highlighted' : ''}`}
+                            onMouseEnter={() => setCityHighlightedIndex(idx)}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              handleCitySelect(name);
+                            }}
+                          >
+                            {name}
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  )}
+                </>
+              )}
             </div>
 
             <div>
@@ -318,7 +403,7 @@ export function RegistrationForm({ onRegistered }: RegistrationFormProps) {
             </div>
 
             <button type="submit" className="registration-submit">
-              Далее: настройка цен
+              Далее
             </button>
 
             <p className="registration-footer">
@@ -334,8 +419,20 @@ export function RegistrationForm({ onRegistered }: RegistrationFormProps) {
               Укажите диапазоны времени и цену за аренду (руб). Можно добавить несколько диапазонов для разных периодов дня.
             </p>
 
-            {renderPriceSection('Будние дни (Пн–Пт)', 'weekday')}
-            {renderPriceSection('Выходные (Сб–Вс)', 'weekend')}
+            <PriceRangesSection
+              title="Будние дни (Пн–Пт)"
+              slots={pricing.weekday}
+              onAdd={() => addSlot('weekday')}
+              onRemove={(index) => removeSlot('weekday', index)}
+              onUpdateSlot={(index, field, value) => updateSlot('weekday', index, field, value)}
+            />
+            <PriceRangesSection
+              title="Выходные (Сб–Вс)"
+              slots={pricing.weekend}
+              onAdd={() => addSlot('weekend')}
+              onRemove={(index) => removeSlot('weekend', index)}
+              onUpdateSlot={(index, field, value) => updateSlot('weekend', index, field, value)}
+            />
 
             {error && (
               <div className="registration-error" role="alert">{error}</div>

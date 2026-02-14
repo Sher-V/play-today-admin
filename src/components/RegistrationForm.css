@@ -15,6 +15,8 @@
   padding: 2rem;
   width: 100%;
   max-width: 28rem;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .registration-page .registration-header {
@@ -54,6 +56,8 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .registration-page label {
@@ -80,19 +84,92 @@
 .registration-page input[type="password"],
 .registration-page input[type="url"],
 .registration-page input[type="number"],
-.registration-page input[type="time"] {
+.registration-page input[type="time"],
+.registration-page select {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 0.75rem 1rem;
   border: 1px solid var(--color-gray-300, #d1d5db);
   border-radius: 0.5rem;
   font-size: 1rem;
   transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
 }
 
-.registration-page input:focus {
+.registration-page input:focus,
+.registration-page select:focus {
   outline: none;
   border-color: #28A745;
   box-shadow: 0 0 0 2px rgb(40 167 69 / 0.3);
+}
+
+.registration-page select {
+  cursor: pointer;
+  appearance: auto;
+}
+
+/* Поиск города */
+.registration-page .registration-city-search {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.registration-page .registration-city-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.registration-page .registration-city-icon {
+  position: absolute;
+  left: 1rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--color-gray-400, #9ca3af);
+  pointer-events: none;
+}
+
+.registration-page .registration-city-input-wrap input {
+  width: 100%;
+  padding-left: 2.75rem;
+}
+
+.registration-page .registration-city-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 0.25rem 0 0;
+  padding: 0.5rem 0;
+  max-height: 16rem;
+  overflow-y: auto;
+  list-style: none;
+  background: white;
+  border: 1px solid var(--color-gray-200, #e5e7eb);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  z-index: 50;
+}
+
+.registration-page .registration-city-option {
+  padding: 0.625rem 1rem 0.625rem 2.75rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.registration-page .registration-city-option:hover,
+.registration-page .registration-city-option--highlighted {
+  background: rgba(40, 167, 69, 0.08);
+  color: #1a5f2a;
+}
+
+.registration-page .registration-city-empty {
+  padding: 0.75rem 1rem 0.75rem 2.75rem;
+  color: var(--color-gray-500, #6b7280);
+  font-size: 0.9375rem;
 }
 
 .registration-page .registration-time-row {
@@ -179,126 +256,11 @@
   color: var(--color-gray-400, #9ca3af);
 }
 
-/* Шаг 2: цены */
+/* Шаг 2: цены (блоки цен — компонент PriceRangesSection) */
 .registration-page .registration-price-intro {
-  font-size: 0.875rem;
-  color: var(--color-gray-600, #4b5563);
-  margin-bottom: 1.25rem;
-}
-
-.registration-page .registration-price-section {
-  margin-bottom: 1.5rem;
-}
-
-.registration-page .registration-price-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
-}
-
-.registration-page .registration-price-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-gray-800, #1f2937);
-  margin: 0;
-}
-
-.registration-page .registration-btn-add {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.75rem;
   font-size: 0.8125rem;
-  color: #28A745;
-  background: transparent;
-  border: 1px solid #28A745;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-}
-
-.registration-page .registration-btn-add:hover {
-  background: #28A745;
-  color: white;
-}
-
-.registration-page .registration-btn-add-icon {
-  width: 1rem;
-  height: 1rem;
-}
-
-.registration-page .registration-price-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.registration-page .registration-price-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.registration-page .registration-price-time {
-  flex: 0 0 auto;
-  min-width: 5rem;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid var(--color-gray-300, #d1d5db);
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.registration-page .registration-price-time:focus {
-  outline: none;
-  border-color: #28A745;
-}
-
-.registration-page .registration-price-dash {
-  color: var(--color-gray-500, #6b7280);
-  font-size: 0.875rem;
-}
-
-.registration-page .registration-price-input {
-  width: 5.5rem;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid var(--color-gray-300, #d1d5db);
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.registration-page .registration-price-input:focus {
-  outline: none;
-  border-color: #28A745;
-}
-
-.registration-page .registration-price-currency {
-  font-size: 0.875rem;
-  color: var(--color-gray-600, #4b5563);
-}
-
-.registration-page .registration-btn-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.4rem;
-  color: var(--color-gray-500, #6b7280);
-  background: transparent;
-  border: none;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  transition: color 0.2s, background 0.2s;
-}
-
-.registration-page .registration-btn-remove:hover {
-  color: #dc3545;
-  background: rgba(220, 53, 69, 0.08);
-}
-
-.registration-page .registration-btn-remove-icon {
-  width: 1rem;
-  height: 1rem;
+  color: #6b7280;
+  margin: 0 0 1rem 0;
 }
 
 .registration-page .registration-step2-actions {

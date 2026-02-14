@@ -193,13 +193,51 @@ export function MainPage() {
   };
 
   // Список кортов и прайс по кортам — считаем до любых return, чтобы порядок хуков не менялся
-  const courtNames = useMemo(
-    () =>
-      courts.length > 0
-        ? courts.map((c) => c.name)
-        : Array.from({ length: club?.courtsCount || 1 }, (_, i) => `Корт ${i + 1}`),
-    [courts, club?.courtsCount]
-  );
+  // Если все корты имеют одинаковое имя (например, "Корт 1"), используем их order для генерации правильных имён
+  const courtNames = useMemo(() => {
+    const expectedCount = club?.courtsCount ?? 1;
+    if (courts.length === 0) {
+      return Array.from({ length: expectedCount }, (_, i) => `Корт ${i + 1}`);
+    }
+    // Сортируем по order
+    const sorted = [...courts].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    
+    // Проверяем, все ли корты имеют одинаковое имя
+    const firstName = sorted[0]?.name ?? '';
+    const allSameName = sorted.length > 0 && sorted.every(c => c.name === firstName);
+    
+    if (allSameName && sorted.length > 1) {
+      // Если все корты имеют одинаковое имя, генерируем имена на основе order или индекса
+      return sorted.slice(0, expectedCount).map((c, idx) => {
+        // Используем order, если он уникален и больше 0, иначе используем индекс + 1
+        const order = (c.order && c.order > 0) ? c.order : (idx + 1);
+        return `Корт ${order}`;
+      });
+    }
+    
+    // Иначе используем реальные имена, убирая дубликаты
+    const seen = new Set<string>();
+    const unique: string[] = [];
+    for (const court of sorted) {
+      if (!seen.has(court.name) && unique.length < expectedCount) {
+        seen.add(court.name);
+        unique.push(court.name);
+      }
+    }
+    
+    // Если после дедупликации кортов меньше, чем должно быть, дополняем правильными именами
+    if (unique.length < expectedCount) {
+      for (let i = unique.length + 1; i <= expectedCount; i++) {
+        const name = `Корт ${i}`;
+        if (!seen.has(name)) {
+          unique.push(name);
+        }
+      }
+    }
+    
+    // Ограничиваем до expectedCount
+    return unique.slice(0, expectedCount);
+  }, [courts, club?.courtsCount]);
   const pricingByCourt = useMemo(() => {
     const r: Record<string, import('../lib/clubStorage').ClubData['pricing']> = {};
     courtNames.forEach((name) => {
@@ -487,6 +525,8 @@ export function MainPage() {
                 courts={courtNames}
                 selectedDate={selectedDate}
                 bookings={visibleBookings}
+                openingTime={club?.openingTime ?? '08:00'}
+                closingTime={club?.closingTime ?? '22:00'}
                 onSlotClick={handleSlotClick}
                 onCancelBooking={(b) => setBookingToCancel(b)}
                 onBookingClick={handleBookingClick}
@@ -496,6 +536,8 @@ export function MainPage() {
                 courts={courtNames}
                 selectedDate={selectedDate}
                 bookings={visibleBookings}
+                openingTime={club?.openingTime ?? '08:00'}
+                closingTime={club?.closingTime ?? '22:00'}
                 onWeekChange={handleDateChange}
                 onBookingClick={handleBookingClick}
                 onSlotClick={handleSlotClick}
@@ -519,6 +561,8 @@ export function MainPage() {
               courtId={editingBooking?.courtId || selectedSlot?.courtId || ''}
               time={editingBooking?.startTime || selectedSlot?.time || ''}
               date={editingBooking?.date || selectedSlot?.date || selectedDate}
+              openingTime={club?.openingTime ?? '08:00'}
+              closingTime={club?.closingTime ?? '22:00'}
               initialDuration={selectedSlot?.duration}
               existingBooking={editingBooking || undefined}
               paymentLink={paymentLink}
