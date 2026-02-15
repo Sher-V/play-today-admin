@@ -37,7 +37,7 @@ function parseViewFromUrl(search: string): 'day' | 'week' {
 
 export function MainPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [user, setUser] = useState<{ uid: string } | null>(null);
+  const [user, setUser] = useState<{ uid: string; email?: string | null; emailVerified?: boolean } | null>(null);
   const [club, setClub] = useState<ClubData | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -95,7 +95,7 @@ export function MainPage() {
     let cancelled = false;
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (cancelled) return;
-      setUser(firebaseUser ? { uid: firebaseUser.uid } : null);
+      setUser(firebaseUser ? { uid: firebaseUser.uid, email: firebaseUser.email ?? null, emailVerified: firebaseUser.emailVerified } : null);
       try {
         if (firebaseUser) {
           let stored = getStoredClub();
@@ -441,6 +441,11 @@ export function MainPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto p-4">
+        {user && !user.emailVerified && (
+          <div className="mb-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900" role="status">
+            Подтвердите почту: на <strong>{user.email || 'ваш email'}</strong> отправлено письмо со ссылкой. Перейдите по ссылке в письме, чтобы подтвердить адрес.
+          </div>
+        )}
         <div className="mb-3 flex items-center justify-between gap-4 flex-wrap">
           <h1 className="mb-3 text-xl">Управление бронированием кортов</h1>
           <div className="flex items-center gap-3">

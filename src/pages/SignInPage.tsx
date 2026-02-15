@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
 import { getFirebaseAuth } from '../lib/firebase';
+import { getAuthErrorMessage } from '../lib/authErrors';
 import { getClubByUserIdOrEmail } from '../lib/clubsFirestore';
 import { saveClub } from '../lib/clubStorage';
 import { SignInForm } from '../components/SignInForm';
@@ -29,18 +30,18 @@ export function SignInPage() {
       saveClub(club);
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
-      const code = (err as { code?: string })?.code;
-      if (code === 'auth/configuration-not-found') {
-        throw new Error('Включите Authentication в Firebase Console: Authentication → Get started → Email/Password.');
-      }
-      throw err;
+      throw new Error(getAuthErrorMessage(err));
     }
   };
 
   const handleResetPassword = async (email: string) => {
     const auth = getFirebaseAuth();
     if (!auth) throw new Error('Firebase не настроен. Задайте переменные VITE_FIREBASE_* в .env');
-    await sendPasswordResetEmail(auth, email);
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (err: unknown) {
+      throw new Error(getAuthErrorMessage(err));
+    }
   };
 
   return <SignInForm onSignIn={handleSignIn} onResetPassword={handleResetPassword} />;

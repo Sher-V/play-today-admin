@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, ChevronLeft, Search } from 'lucide-react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { getFirebaseAuth } from '../lib/firebase';
 import { getRussiaCities } from '../lib/russiaCities';
 import type { ClubData } from '../lib/clubStorage';
@@ -193,6 +193,11 @@ export function RegistrationForm({ onRegistered }: RegistrationFormProps) {
         return;
       }
       const { user } = await createUserWithEmailAndPassword(auth, formData.email, password);
+      try {
+        await sendEmailVerification(user);
+      } catch (verifyErr) {
+        console.warn('Не удалось отправить письмо подтверждения:', verifyErr);
+      }
       await onRegistered(dataToSave, user.uid);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
