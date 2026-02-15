@@ -232,6 +232,33 @@
   text-decoration: underline;
 }
 
+.registration-page .registration-link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: #28A745;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.registration-page .registration-link-button:hover {
+  text-decoration: underline;
+}
+
+.registration-page .registration-link-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.registration-page .registration-reset-success {
+  font-size: 0.9375rem;
+  color: var(--color-gray-700, #374151);
+  margin: 0 0 1.5rem 0;
+  line-height: 1.5;
+}
+
 /* Шаги регистрации */
 .registration-page .registration-steps {
   display: flex;

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
+import { signInWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
 import { getFirebaseAuth } from '../lib/firebase';
 import { getClubByUserIdOrEmail } from '../lib/clubsFirestore';
 import { saveClub } from '../lib/clubStorage';
@@ -37,5 +37,11 @@ export function SignInPage() {
     }
   };
 
-  return <SignInForm onSignIn={handleSignIn} />;
+  const handleResetPassword = async (email: string) => {
+    const auth = getFirebaseAuth();
+    if (!auth) throw new Error('Firebase не настроен. Задайте переменные VITE_FIREBASE_* в .env');
+    await sendPasswordResetEmail(auth, email);
+  };
+
+  return <SignInForm onSignIn={handleSignIn} onResetPassword={handleResetPassword} />;
 }

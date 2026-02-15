@@ -1,4 +1,9 @@
 import * as functions from 'firebase-functions';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Для локального эмулятора: загрузка .env из папки functions
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const YOOKASSA_API = 'https://api.yookassa.ru/v3/payments';
 
