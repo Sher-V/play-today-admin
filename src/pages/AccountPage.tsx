@@ -26,7 +26,7 @@ export function AccountPage() {
   const [user, setUser] = useState<{ uid: string; email: string | null } | null>(null);
   const [club, setClub] = useState<ClubData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [courtsCount, setCourtsCount] = useState(1);
+  const [courtsCountInput, setCourtsCountInput] = useState('1');
   const [yandexMapsUrl, setYandexMapsUrl] = useState('');
   const [openingTime, setOpeningTime] = useState('07:00');
   const [closingTime, setClosingTime] = useState('23:00');
@@ -60,7 +60,7 @@ export function AccountPage() {
         }
         setClub(stored);
         if (stored) {
-          setCourtsCount(stored.courtsCount ?? 1);
+          setCourtsCountInput(String(stored.courtsCount ?? 1));
           setYandexMapsUrl(stored.yandexMapsUrl ?? '');
           setOpeningTime(stored.openingTime ?? '07:00');
           setClosingTime(stored.closingTime ?? '23:00');
@@ -111,6 +111,8 @@ export function AccountPage() {
     setError('');
     setSuccess(false);
     setIsSubmitting(true);
+    const parsed = parseInt(courtsCountInput.trim(), 10);
+    const courtsCount = (Number.isNaN(parsed) || parsed < 1) ? 1 : Math.min(32, parsed);
     try {
       await updateClubInFirestore(club.clubId, {
         courtsCount,
@@ -119,6 +121,7 @@ export function AccountPage() {
         closingTime,
         pricing,
       });
+      setCourtsCountInput(String(courtsCount));
       const updated: ClubData = {
         ...club,
         courtsCount,
@@ -189,12 +192,13 @@ export function AccountPage() {
               <label htmlFor="account-courts">Количество кортов</label>
               <input
                 id="account-courts"
-                type="number"
-                min={1}
-                max={20}
-                value={courtsCount}
-                onChange={(e) => setCourtsCount(Number(e.target.value) || 1)}
+                type="text"
+                inputMode="numeric"
+                value={courtsCountInput}
+                onChange={(e) => setCourtsCountInput(e.target.value)}
+                placeholder="1"
               />
+              <span className="account-page__hint">От 1 до 32</span>
             </div>
 
             <div className="account-page__field">

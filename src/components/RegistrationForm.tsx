@@ -373,7 +373,7 @@ export function RegistrationForm({ onRegistered }: RegistrationFormProps) {
                 type="number"
                 required
                 min={1}
-                max={20}
+                max={32}
                 value={formData.courtsCount}
                 onChange={(e) => setFormData({ ...formData, courtsCount: Number(e.target.value) })}
               />

@@ -84,6 +84,7 @@
   margin-bottom: 0.5rem;
 }
 
+.account-page__field input[type="text"],
 .account-page__field input[type="number"],
 .account-page__field input[type="time"],
 .account-page__field input[type="url"] {
@@ -95,6 +96,7 @@
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+.account-page__field input[type="text"],
 .account-page__field input[type="number"],
 .account-page__field input[type="time"] {
   max-width: 8rem;
