@@ -4,13 +4,26 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 interface DatePickerProps {
   selectedDate: string;
   onDateChange: (date: string) => void;
+  /** Минимальная дата (YYYY-MM-DD). Дни до неё недоступны. */
+  minDate?: string;
+  /** Плейсхолдер, когда дата не выбрана (selectedDate пустой). */
+  placeholder?: string;
 }
 
-export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
+export function DatePicker({ selectedDate, onDateChange, minDate, placeholder }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const minDateObj = minDate ? (() => {
+    const [y, m, d] = minDate.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  })() : null;
   const [currentMonth, setCurrentMonth] = useState(() => {
-    const [year, month, day] = selectedDate.split('-').map(Number);
-    return new Date(year, month - 1, 1);
+    if (selectedDate) {
+      const [year, month] = selectedDate.split('-').map(Number);
+      return new Date(year, month - 1, 1);
+    }
+    if (minDateObj) return new Date(minDateObj.getFullYear(), minDateObj.getMonth(), 1);
+    const t = new Date();
+    return new Date(t.getFullYear(), t.getMonth(), 1);
   });
 
   const formatSelectedDate = (dateStr: string) => {
@@ -80,8 +93,18 @@ export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
            date.getFullYear() === today.getFullYear();
   };
 
+  const isBeforeMin = (date: Date | null) => {
+    if (!date || !minDateObj) return false;
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    return d < minDateObj;
+  };
+
   const days = getDaysInMonth(currentMonth);
   const monthName = currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+
+  const buttonLabel = selectedDate
+    ? formatSelectedDate(selectedDate)
+    : (placeholder ?? 'Выберите дату');
 
   return (
     <div className="relative">
@@ -90,7 +113,9 @@ export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
         className="px-4 py-2 border border-gray-300 rounded-lg bg-white hover:border-gray-400 transition-colors text-left"
         type="button"
       >
-        <span className="text-gray-900 whitespace-nowrap">{formatSelectedDate(selectedDate)}</span>
+        <span className={`text-gray-900 whitespace-nowrap ${!selectedDate ? 'text-gray-500' : ''}`}>
+          {buttonLabel}
+        </span>
       </button>
 
       {isOpen && (
@@ -135,23 +160,27 @@ export function DatePicker({ selectedDate, onDateChange }: DatePickerProps) {
 
             {/* Days grid */}
             <div className="grid grid-cols-7 gap-1">
-              {days.map((date, index) => (
-                <button
-                  key={index}
-                  onClick={() => date && handleDateSelect(date)}
-                  disabled={!date}
-                  type="button"
-                  className={`
-                    h-10 rounded-lg text-sm font-medium transition-colors
-                    ${!date ? 'invisible' : ''}
-                    ${isSelectedDate(date) ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}
-                    ${!isSelectedDate(date) && isToday(date) ? 'bg-blue-100 text-blue-900 hover:bg-blue-200' : ''}
-                    ${!isSelectedDate(date) && !isToday(date) ? 'text-gray-700 hover:bg-gray-100' : ''}
-                  `}
-                >
-                  {date?.getDate()}
-                </button>
-              ))}
+              {days.map((date, index) => {
+                const disabled = !date || isBeforeMin(date);
+                return (
+                  <button
+                    key={index}
+                    onClick={() => date && !disabled && handleDateSelect(date)}
+                    disabled={disabled}
+                    type="button"
+                    className={`
+                      h-10 rounded-lg text-sm font-medium transition-colors
+                      ${!date ? 'invisible' : ''}
+                      ${disabled && date ? 'text-gray-300 cursor-not-allowed' : ''}
+                      ${!disabled && isSelectedDate(date) ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}
+                      ${!disabled && !isSelectedDate(date) && isToday(date) ? 'bg-blue-100 text-blue-900 hover:bg-blue-200' : ''}
+                      ${!disabled && !isSelectedDate(date) && !isToday(date) ? 'text-gray-700 hover:bg-gray-100' : ''}
+                    `}
+                  >
+                    {date?.getDate()}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </>

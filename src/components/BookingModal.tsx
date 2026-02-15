@@ -29,9 +29,11 @@ interface BookingModalProps {
   onSave: (booking: Omit<Booking, 'id'>, bookingId?: string, options?: BookingSaveOptions) => void | Promise<void>;
   /** При нажатии «Отменить бронь» — вызвать это (показать окно подтверждения отмены) и закрыть модалку. Если не передано, используется confirm + сохранение со статусом canceled. */
   onRequestCancelBooking?: (booking: Booking) => void;
+  /** При нажатии «Отменить серию» — отменить эту и все последующие брони серии. Только для регулярных броней. */
+  onRequestCancelSeries?: (booking: Booking) => void;
 }
 
-export function BookingModal({ courts, courtId, time, date, openingTime = '08:00', closingTime = '22:00', initialDuration, existingBooking, paymentLink, pricingByCourt, onClose, onSave, onRequestCancelBooking }: BookingModalProps) {
+export function BookingModal({ courts, courtId, time, date, openingTime = '08:00', closingTime = '22:00', initialDuration, existingBooking, paymentLink, pricingByCourt, onClose, onSave, onRequestCancelBooking, onRequestCancelSeries }: BookingModalProps) {
   const calculateDuration = (start: string, end: string) => {
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
@@ -156,6 +158,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
       onClose();
       return;
     }
+    // fallback: confirm + save with status canceled
     if (!confirm('Перевести бронь в статус «Отменена»?')) return;
     setIsSubmitting(true);
     (async () => {
@@ -183,6 +186,12 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
         setIsSubmitting(false);
       }
     })();
+  };
+
+  const handleCancelSeries = () => {
+    if (!existingBooking || !onRequestCancelSeries) return;
+    onRequestCancelSeries(existingBooking);
+    onClose();
   };
 
   const getDurationLabel = (hours: number) => {
@@ -259,9 +268,14 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[calc(100vh-2rem)] flex flex-col my-auto relative p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between flex-shrink-0 pb-3">
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto pb-6 px-4 bg-black/50"
+      style={{ paddingTop: '30px' }}
+      onClick={onClose}
+    >
+      <div className="min-h-[calc(100vh-3rem)] flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full relative p-6 my-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between pb-3">
           <h2 className="font-semibold">{existingBooking ? 'Редактирование бронирования' : 'Новое бронирование'}</h2>
           <button
             type="button"
@@ -274,7 +288,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 min-h-0 pt-4">
+        <div className="pt-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Корт</label>
@@ -342,12 +356,11 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
             <div className="bg-blue-50 p-4 rounded-lg space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Дата окончания серии</label>
-                <input
-                  type="date"
-                  value={recurringEndDate}
-                  onChange={(e) => setRecurringEndDate(e.target.value)}
-                  min={date}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                <DatePicker
+                  selectedDate={recurringEndDate || selectedDate}
+                  onDateChange={setRecurringEndDate}
+                  minDate={selectedDate}
+                  placeholder="Выберите дату окончания"
                 />
               </div>
               <p className="text-xs text-gray-600">
@@ -445,15 +458,25 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
             </button>
           </div>
           {existingBooking && existingBooking.status !== 'canceled' && (
-            <div className="pt-3 mt-3 border-t border-gray-200">
+            <div className="pt-3 mt-3 border-t border-gray-200 flex gap-2">
               <button
                 type="button"
                 onClick={handleCancelBooking}
                 disabled={isSubmitting}
-                className="w-full px-4 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                className="flex-1 px-4 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
               >
                 Отменить бронь
               </button>
+              {(existingBooking.isRecurring || existingBooking.activity === 'Группа' || existingBooking.activity === 'Регулярная бронь корта') && onRequestCancelSeries && (
+                <button
+                  type="button"
+                  onClick={handleCancelSeries}
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Отменить серию
+                </button>
+              )}
             </div>
           )}
         </form>
@@ -468,6 +491,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
+        </div>
       </div>
     </div>
   );

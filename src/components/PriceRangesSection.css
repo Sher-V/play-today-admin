@@ -78,7 +78,7 @@
 .price-ranges__time {
   flex: 0 0 auto;
   width: 3.75rem;
-  min-width: 0;
+  min-width: 4.5rem;
   padding: 0.45rem 0.35rem;
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
@@ -101,15 +101,17 @@
   align-items: center;
   gap: 0.25rem;
   flex-shrink: 0;
+  min-width: 6.5rem;
 }
 
 .price-ranges__input {
-  width: 2.75rem;
-  min-width: 0;
-  padding: 0.45rem 0.25rem;
+  width: 5.5rem;
+  min-width: 5rem;
+  padding: 0.45rem 0.35rem;
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
   font-size: 0.8125rem;
+  box-sizing: border-box;
 }
 
 .price-ranges__input:focus {

@@ -16,7 +16,7 @@ import { BookingModal, type BookingSaveOptions } from '../components/BookingModa
 import { createPaymentLink } from '../lib/yookassa';
 import { DatePicker } from '../components/DatePicker';
 import { WeeklySchedule } from '../components/WeeklySchedule';
-import { ChevronLeft, ChevronRight, Calendar, CalendarDays, LogOut, User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, CalendarDays, LogOut, User, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import type { Booking } from '../App';
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -55,7 +55,15 @@ export function MainPage() {
   );
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [bookingToCancel, setBookingToCancel] = useState<Booking | null>(null);
+  const [bookingToCancelSeries, setBookingToCancelSeries] = useState<Booking | null>(null);
   const [cancelInProgress, setCancelInProgress] = useState(false);
+  /** Результат создания регулярных бронирований: показываем модалку вместо alert. */
+  const [recurringResult, setRecurringResult] = useState<
+    | { type: 'success'; created: number }
+    | { type: 'partial'; created: number; skippedDates: string[] }
+    | { type: 'none' }
+    | null
+  >(null);
 
   const setSelectedDate = useCallback(
     (date: string) => {
@@ -159,6 +167,17 @@ export function MainPage() {
       cancelled = true;
     };
   }, [club?.clubId, club?.courtsCount]);
+
+  // Обновлять список бронирований раз в минуту
+  useEffect(() => {
+    if (!club?.clubId || courts.length === 0) return;
+    const loadBookings = async () => {
+      const list = await getBookings(club.clubId, courts);
+      setBookings(list);
+    };
+    const intervalId = setInterval(loadBookings, 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [club?.clubId, courts]);
 
   // При первой загрузке без параметров — записать текущую дату и вид в URL
   useEffect(() => {
@@ -353,11 +372,11 @@ export function MainPage() {
       await loadBookings();
       setModalOpen(false);
       if (created === 0) {
-        alert('Не удалось создать ни одного бронирования. Все выбранные слоты уже заняты или произошла ошибка.');
+        setRecurringResult({ type: 'none' });
       } else if (skippedDates.length > 0) {
-        alert(`Создано бронирований: ${created}\n\nПропущено дат: ${skippedDates.length}\n(${skippedDates.slice(0, 5).join(', ')}${skippedDates.length > 5 ? '...' : ''})`);
+        setRecurringResult({ type: 'partial', created, skippedDates });
       } else {
-        alert(`Успешно создано ${created} регулярных бронирований!`);
+        setRecurringResult({ type: 'success', created });
       }
       return;
     }
@@ -428,6 +447,44 @@ export function MainPage() {
     } catch (e) {
       console.error(e);
       alert(e instanceof Error ? e.message : 'Не удалось отменить бронь.');
+    }
+  };
+
+  /** Отменить эту и все последующие брони серии (тот же корт, время, дата >= текущей). */
+  const handleCancelSeriesFromModal = async (booking: Booking) => {
+    if (!club?.clubId || courts.length === 0) return;
+    const sameSeries = bookings.filter(
+      (b) =>
+        b.status !== 'canceled' &&
+        b.courtId === booking.courtId &&
+        b.startTime === booking.startTime &&
+        b.endTime === booking.endTime &&
+        b.date >= booking.date
+    );
+    setCancelInProgress(true);
+    try {
+      for (const b of sameSeries) {
+        const payload: Omit<Booking, 'id'> = {
+          courtId: b.courtId,
+          date: b.date,
+          startTime: b.startTime,
+          endTime: b.endTime,
+          activity: b.activity,
+          comment: b.comment,
+          color: b.color,
+          isRecurring: b.isRecurring,
+          recurringEndDate: b.recurringEndDate,
+          status: 'canceled',
+        };
+        await updateBookingInFirestore(club.clubId, b.id, payload, courts);
+      }
+      await loadBookings();
+      setBookingToCancelSeries(null);
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : 'Не удалось отменить серию.');
+    } finally {
+      setCancelInProgress(false);
     }
   };
 
@@ -578,7 +635,100 @@ export function MainPage() {
                 setBookingToCancel(booking);
                 handleCloseModal();
               }}
+              onRequestCancelSeries={(booking) => {
+                setBookingToCancelSeries(booking);
+                handleCloseModal();
+              }}
             />
+          )}
+
+          {recurringResult !== null && (
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+              style={{ zIndex: 10000 }}
+              onClick={() => setRecurringResult(null)}
+            >
+              <div
+                className={`
+                  w-[min(100%,24rem)] min-w-[280px] shrink-0
+                  bg-white rounded-2xl shadow-2xl overflow-hidden relative
+                  ${recurringResult.type === 'success' ? 'ring-1 ring-emerald-200' : ''}
+                  ${recurringResult.type === 'partial' ? 'ring-1 ring-amber-200' : ''}
+                  ${recurringResult.type === 'none' ? 'ring-1 ring-red-200' : ''}
+                `}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Акцентная полоса сверху */}
+                <div
+                  className={`
+                    h-1 w-full rounded-t-2xl
+                    ${recurringResult.type === 'success' ? 'bg-emerald-500' : ''}
+                    ${recurringResult.type === 'partial' ? 'bg-amber-500' : ''}
+                    ${recurringResult.type === 'none' ? 'bg-red-500' : ''}
+                  `}
+                />
+                <button
+                  type="button"
+                  onClick={() => setRecurringResult(null)}
+                  className="absolute p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors z-10"
+                  style={{ top: '1rem', right: '1rem', left: 'auto' }}
+                  aria-label="Закрыть"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="px-10 py-8 pt-10 pb-10">
+                  {recurringResult.type === 'success' && (
+                    <div className="text-center">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 mb-5">
+                        <CheckCircle2 className="w-10 h-10 text-emerald-600" strokeWidth={2} />
+                      </div>
+                      <h2 className="text-xl font-semibold text-gray-900 mb-2">Готово</h2>
+                      <p className="text-gray-600 leading-relaxed">
+                        Успешно создано <strong className="text-emerald-700">{recurringResult.created}</strong>{' '}
+                        {recurringResult.created === 1 ? 'регулярное бронирование' : 'регулярных бронирований'}.
+                      </p>
+                    </div>
+                  )}
+                  {recurringResult.type === 'partial' && (
+                    <div className="text-center">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-50 mb-5">
+                        <AlertCircle className="w-10 h-10 text-amber-600" strokeWidth={2} />
+                      </div>
+                      <h2 className="text-xl font-semibold text-gray-900 mb-2">Создано частично</h2>
+                      <p className="text-gray-600 leading-relaxed mb-3">
+                        Создано бронирований: <strong className="text-amber-700">{recurringResult.created}</strong>.
+                      </p>
+                      <p className="text-sm text-gray-500 leading-relaxed mb-2">
+                        Пропущено дат: {recurringResult.skippedDates.length}{' '}
+                        (заняты или ошибка):{' '}
+                        {recurringResult.skippedDates.slice(0, 5).join(', ')}
+                        {recurringResult.skippedDates.length > 5 ? '…' : ''}
+                      </p>
+                      <p className="text-gray-600 text-sm">Остальные даты добавлены в календарь.</p>
+                    </div>
+                  )}
+                  {recurringResult.type === 'none' && (
+                    <div className="text-center">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-50 mb-5">
+                        <AlertCircle className="w-10 h-10 text-red-600" strokeWidth={2} />
+                      </div>
+                      <h2 className="text-xl font-semibold text-gray-900 mb-2">Ни одного не создано</h2>
+                      <p className="text-gray-600 leading-relaxed">
+                        Все выбранные слоты уже заняты или произошла ошибка. Выберите другое время или даты.
+                      </p>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setRecurringResult(null)}
+                    className="mt-8 w-full py-3.5 px-5 bg-blue-600 text-white font-medium rounded-2xl hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm"
+                  >
+                    Понятно
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {bookingToCancel !== null && (
@@ -619,6 +769,50 @@ export function MainPage() {
                       } finally {
                         setCancelInProgress(false);
                       }
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    Да
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {bookingToCancelSeries !== null && (
+            <div
+              className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 overflow-y-auto"
+              style={{ zIndex: 10000 }}
+              onClick={() => !cancelInProgress && setBookingToCancelSeries(null)}
+            >
+              <div
+                className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 text-center relative"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {cancelInProgress && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/90 rounded-lg z-10">
+                    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-label="Загрузка" />
+                  </div>
+                )}
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">Отменить серию?</h2>
+                <p className="text-sm text-gray-600 mb-6">
+                  Будет отменено это занятие и все последующие в этой серии. Прошлые занятия сохранятся.
+                </p>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    type="button"
+                    disabled={cancelInProgress}
+                    onClick={() => setBookingToCancelSeries(null)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    Нет
+                  </button>
+                  <button
+                    type="button"
+                    disabled={cancelInProgress}
+                    onClick={async () => {
+                      if (!bookingToCancelSeries) return;
+                      await handleCancelSeriesFromModal(bookingToCancelSeries);
                     }}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none"
                   >
