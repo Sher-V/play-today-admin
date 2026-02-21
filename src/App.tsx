@@ -3,6 +3,8 @@ import { SignInPage } from './pages/SignInPage';
 import { SignUpPage } from './pages/SignUpPage';
 import { MainPage } from './pages/MainPage';
 import { AccountPage } from './pages/AccountPage';
+import { ClientsPage } from './pages/ClientsPage';
+import { ClientPage } from './pages/ClientPage';
 
 /** Статус брони: hold — ожидает оплаты, confirmed — оплачена, canceled — отменена */
 export type BookingStatus = 'hold' | 'confirmed' | 'canceled';
@@ -41,6 +43,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<MainPage />} />
+      <Route path="/clients" element={<ClientsPage />} />
+      <Route path="/clients/:clientId" element={<ClientPage />} />
       <Route path="/signin" element={<SignInPage />} />
       <Route path="/signup" element={<SignUpPage />} />
       <Route path="/account" element={<AccountPage />} />
