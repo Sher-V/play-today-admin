@@ -7,8 +7,10 @@ import { generateTimeSlots } from '../lib/timeSlots';
 import type { ClubPricing } from '../types/club-slots';
 
 export interface BookingSaveOptions {
-  needPaymentLink: boolean;
-  amount: number;
+  needPaymentLink?: boolean;
+  amount?: number;
+  /** При редактировании брони в серии: применить новый комментарий ко всей серии. */
+  applyCommentToSeries?: boolean;
 }
 
 interface BookingModalProps {
@@ -27,13 +29,15 @@ interface BookingModalProps {
   pricingByCourt?: Record<string, ClubPricing | null | undefined>;
   onClose: () => void;
   onSave: (booking: Omit<Booking, 'id'>, bookingId?: string, options?: BookingSaveOptions) => void | Promise<void>;
+  /** Брони той же серии (тот же корт, время) — для диалога «Изменить комментарий для всей серии?». */
+  bookingsInSeries?: Booking[];
   /** При нажатии «Отменить бронь» — вызвать это (показать окно подтверждения отмены) и закрыть модалку. Если не передано, используется confirm + сохранение со статусом canceled. */
   onRequestCancelBooking?: (booking: Booking) => void;
   /** При нажатии «Отменить серию» — отменить эту и все последующие брони серии. Только для регулярных броней. */
   onRequestCancelSeries?: (booking: Booking) => void;
 }
 
-export function BookingModal({ courts, courtId, time, date, openingTime = '08:00', closingTime = '22:00', initialDuration, existingBooking, paymentLink, pricingByCourt, onClose, onSave, onRequestCancelBooking, onRequestCancelSeries }: BookingModalProps) {
+export function BookingModal({ courts, courtId, time, date, openingTime = '08:00', closingTime = '22:00', initialDuration, existingBooking, paymentLink, pricingByCourt, bookingsInSeries, onClose, onSave, onRequestCancelBooking, onRequestCancelSeries }: BookingModalProps) {
   const calculateDuration = (start: string, end: string) => {
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
@@ -53,6 +57,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
   const [needPaymentLink, setNeedPaymentLink] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(1000);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCommentScopeDialog, setShowCommentScopeDialog] = useState(false);
 
   const pricing = pricingByCourt?.[selectedCourtId] ?? null;
 
@@ -86,24 +91,52 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
   const selectedActivity = activityTypes.find(a => a.name === activity) || activityTypes[0];
   const isRecurringType = activity === 'Группа' || activity === 'Регулярная бронь корта';
   const isOneTime = activity === 'Разовая бронь корта';
+
+  /** При редактировании брони серии — дата последней брони в серии (для поля «Дата окончания серии»). */
+  const lastSeriesDate = useMemo(() => {
+    if (!bookingsInSeries?.length) return undefined;
+    return bookingsInSeries.reduce((max, b) => (b.date > max ? b.date : max), bookingsInSeries[0].date);
+  }, [bookingsInSeries]);
+  const effectiveRecurringEndDate = recurringEndDate || lastSeriesDate || '';
   const useCalculatedAmount = isOneTime && needPaymentLink && hasPricing(pricing ?? undefined);
   const calculatedAmount = useCalculatedAmount && pricing
     ? getPriceForBooking(pricing, selectedDate, selectedTime, calculateEndTime(selectedTime, duration))
     : 0;
+
+  const buildPayload = () => ({
+    courtId: selectedCourtId,
+    date: selectedDate,
+    startTime: selectedTime,
+    endTime: calculateEndTime(selectedTime, duration),
+    activity,
+    comment: comment.trim(),
+    color: selectedActivity.color,
+    isRecurring: isRecurringType,
+    recurringEndDate: isRecurringType ? (recurringEndDate || lastSeriesDate) : undefined,
+    status: isPaid ? 'confirmed' : 'hold',
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!comment.trim()) return;
 
     if (isRecurringType) {
-      if (!recurringEndDate) {
+      const endDate = recurringEndDate || lastSeriesDate;
+      if (!endDate) {
         alert('Пожалуйста, укажите дату окончания для регулярных занятий');
         return;
       }
-      if (new Date(recurringEndDate) <= new Date(date)) {
+      if (new Date(endDate) <= new Date(date)) {
         alert('Дата окончания должна быть позже даты начала');
         return;
       }
+    }
+
+    const commentChanged = existingBooking && comment.trim() !== (existingBooking.comment ?? '');
+    const hasSeries = bookingsInSeries && bookingsInSeries.length > 1;
+    if (commentChanged && hasSeries) {
+      setShowCommentScopeDialog(true);
+      return;
     }
 
     const amount =
@@ -117,28 +150,24 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
 
     setIsSubmitting(true);
     try {
-      await Promise.resolve(
-        onSave(
-          {
-            courtId: selectedCourtId,
-            date: selectedDate,
-            startTime: selectedTime,
-            endTime: calculateEndTime(selectedTime, duration),
-            activity,
-            comment: comment.trim(),
-            color: selectedActivity.color,
-            isRecurring: isRecurringType,
-            recurringEndDate: isRecurringType ? recurringEndDate : undefined,
-            status: isPaid ? 'confirmed' : 'hold',
-          },
-          existingBooking?.id,
-          options
-        )
-      );
+      await Promise.resolve(onSave(buildPayload(), existingBooking?.id, options));
       if (!options) {
         setComment('');
         onClose();
       }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCommentScopeChoice = async (applyToSeries: boolean) => {
+    setShowCommentScopeDialog(false);
+    const options: BookingSaveOptions | undefined = applyToSeries ? { applyCommentToSeries: true } : undefined;
+    setIsSubmitting(true);
+    try {
+      await Promise.resolve(onSave(buildPayload(), existingBooking?.id, options));
+      setComment('');
+      onClose();
     } finally {
       setIsSubmitting(false);
     }
@@ -174,7 +203,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
               comment: comment.trim(),
               color: selectedActivity.color,
               isRecurring: isRecurringType,
-              recurringEndDate: isRecurringType ? recurringEndDate : undefined,
+              recurringEndDate: isRecurringType ? (recurringEndDate || lastSeriesDate) : undefined,
               status: 'canceled',
             },
             existingBooking.id,
@@ -269,13 +298,15 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto pb-6 px-4 bg-black/50"
-      style={{ paddingTop: '30px' }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50"
       onClick={onClose}
     >
-      <div className="min-h-[calc(100vh-3rem)] flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full relative p-6 my-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between pb-3">
+      <div
+        className="bg-white rounded-lg shadow-xl max-w-md w-full relative flex flex-col my-auto"
+        style={{ maxHeight: 'calc(100vh - 2rem)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-6 pb-3 flex-shrink-0 border-b border-gray-100">
           <h2 className="font-semibold">{existingBooking ? 'Редактирование бронирования' : 'Новое бронирование'}</h2>
           <button
             type="button"
@@ -288,7 +319,10 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
           </button>
         </div>
 
-        <div className="pt-4">
+        <div
+          className="flex-1 min-h-0 p-6 pt-4"
+          style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 11rem)' }}
+        >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Корт</label>
@@ -357,7 +391,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Дата окончания серии</label>
                 <DatePicker
-                  selectedDate={recurringEndDate || selectedDate}
+                  selectedDate={effectiveRecurringEndDate || selectedDate}
                   onDateChange={setRecurringEndDate}
                   minDate={selectedDate}
                   placeholder="Выберите дату окончания"
@@ -365,9 +399,9 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
               </div>
               <p className="text-xs text-gray-600">
                 💡 Бронирования будут созданы каждую неделю в {time} на корте {courtId} до выбранной даты.
-                {recurringEndDate && (
+                {effectiveRecurringEndDate && (
                   <span className="block mt-1 font-medium">
-                    Примерно {Math.ceil((new Date(recurringEndDate).getTime() - new Date(date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1} занятий.
+                    Примерно {Math.ceil((new Date(effectiveRecurringEndDate).getTime() - new Date(date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1} занятий.
                   </span>
                 )}
               </p>
@@ -481,6 +515,50 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
           )}
         </form>
         </div>
+        {showCommentScopeDialog && (
+          <div
+            className="absolute inset-0 rounded-lg flex items-center justify-center bg-black/30 p-4"
+            style={{ zIndex: 9998 }}
+            aria-modal="true"
+            role="dialog"
+            aria-labelledby="comment-scope-title"
+          >
+            <div
+              className="bg-white rounded-xl shadow-xl p-5 max-w-sm w-full space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 id="comment-scope-title" className="text-base font-semibold text-gray-900">
+                Изменить комментарий для всей серии?
+              </h3>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleCommentScopeChoice(true)}
+                  disabled={isSubmitting}
+                  className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50 text-sm font-medium"
+                >
+                  Да, для всей
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCommentScopeChoice(false)}
+                  disabled={isSubmitting}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 text-sm font-medium text-gray-700"
+                >
+                  Только для этой
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCommentScopeDialog(false)}
+                  disabled={isSubmitting}
+                  className="w-full px-4 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer disabled:opacity-50 text-sm"
+                >
+                  Отменить
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {isSubmitting && (
           <div
             className="absolute inset-0 rounded-lg flex items-center justify-center bg-white/90"
@@ -491,7 +569,6 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
-        </div>
       </div>
     </div>
   );

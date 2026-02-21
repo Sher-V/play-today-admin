@@ -20,12 +20,10 @@ interface BookingCalendarProps {
 
 /** Высота одного ряда (1 час) в пикселях. */
 const ROW_HEIGHT_PX = 28;
-/** Высота бордера строки (border-b). */
-const ROW_BORDER_PX = 1;
 /** Высота верхнего бордера (border-t-2) у рядов. */
 const ROW_TOP_BORDER_PX = 2;
-/** Полная высота одного ряда = контент + бордеры. */
-const ROW_TOTAL_PX = ROW_TOP_BORDER_PX + ROW_HEIGHT_PX + ROW_BORDER_PX;
+/** Полная высота одного ряда = контент + верхний бордер (без border-b). */
+const ROW_TOTAL_PX = ROW_TOP_BORDER_PX + ROW_HEIGHT_PX;
 
 /** Считает суммарную высоту N получасовых слотов (учёт рядов по 1 часу и бордеров). */
 function getSlotsHeight(_startIndex: number, slotCount: number): number {
@@ -114,7 +112,7 @@ export function BookingCalendar({ courts, selectedDate, bookings, openingTime, c
             const slotIndex1 = hourIndex * 2;
             const slotIndex2 = hourIndex * 2 + 1;
             return (
-              <div key={hour} className="grid border-b border-gray-100 border-t-2 border-t-gray-300 hover:bg-gray-50" style={{ gridTemplateColumns: `100px repeat(${courts.length}, 1fr)`, gridTemplateRows: `${ROW_HEIGHT_PX}px` }}>
+              <div key={hour} className="grid border-t-2 border-t-gray-300 hover:bg-gray-50" style={{ gridTemplateColumns: `100px repeat(${courts.length}, 1fr)`, gridTemplateRows: `${ROW_HEIGHT_PX}px` }}>
                 <div className="py-1 px-2 text-xs font-semibold text-gray-700 bg-gray-50 flex items-center border-r border-gray-200" style={{ minHeight: ROW_HEIGHT_PX }}>
                   {hour}
                 </div>

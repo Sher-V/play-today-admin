@@ -269,6 +269,15 @@ export function MainPage() {
     () => bookings.filter((b) => b.status !== 'canceled'),
     [bookings]
   );
+  const bookingsInSeries = useMemo(() => {
+    if (!editingBooking) return undefined;
+    return bookings.filter(
+      (b) =>
+        b.courtId === editingBooking.courtId &&
+        b.startTime === editingBooking.startTime &&
+        b.endTime === editingBooking.endTime
+    );
+  }, [bookings, editingBooking]);
 
   if (!authChecked) {
     return (
@@ -325,7 +334,31 @@ export function MainPage() {
 
     if (bookingId) {
       try {
-        await updateBookingInFirestore(club.clubId, bookingId, booking, courts);
+        if (options?.applyCommentToSeries) {
+          const sameSeries = bookings.filter(
+            (b) =>
+              b.courtId === booking.courtId &&
+              b.startTime === booking.startTime &&
+              b.endTime === booking.endTime
+          );
+          for (const b of sameSeries) {
+            const payload: Omit<Booking, 'id'> = {
+              courtId: b.courtId,
+              date: b.date,
+              startTime: b.startTime,
+              endTime: b.endTime,
+              activity: b.activity,
+              comment: booking.comment,
+              color: b.color,
+              isRecurring: b.isRecurring,
+              recurringEndDate: b.recurringEndDate,
+              status: b.status,
+            };
+            await updateBookingInFirestore(club.clubId, b.id, payload, courts);
+          }
+        } else {
+          await updateBookingInFirestore(club.clubId, bookingId, booking, courts);
+        }
         await loadBookings();
         setModalOpen(false);
       } catch (e) {
@@ -627,6 +660,7 @@ export function MainPage() {
               closingTime={club?.closingTime ?? '22:00'}
               initialDuration={selectedSlot?.duration}
               existingBooking={editingBooking || undefined}
+              bookingsInSeries={bookingsInSeries}
               paymentLink={paymentLink}
               pricingByCourt={pricingByCourt}
               onClose={handleCloseModal}
