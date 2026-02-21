@@ -7,6 +7,8 @@ import {
   where,
   orderBy,
   serverTimestamp,
+  doc,
+  updateDoc,
 } from 'firebase/firestore';
 
 const COLLECTION_CLUBS = 'clubs';
@@ -15,9 +17,11 @@ const SUBCOLLECTION_CLIENTS = 'clients';
 export interface Client {
   id: string;
   name: string;
+  /** Контакт: телефон, Telegram и т.п. Может быть заполнен вручную или из бота. */
+  contact?: string;
 }
 
-/** Загрузить список клиентов клуба (id + ФИО), отсортированный по имени. */
+/** Загрузить список клиентов клуба (id, ФИО, контакт), отсортированный по имени. */
 export async function getClients(clubId: string): Promise<Client[]> {
   const db = getFirestoreDb();
   if (!db) return [];
@@ -28,10 +32,29 @@ export async function getClients(clubId: string): Promise<Client[]> {
 
   return snapshot.docs
     .map((d) => {
-      const name = (d.data().name as string)?.trim();
-      return name ? { id: d.id, name } : null;
+      const data = d.data();
+      const name = (data.name as string)?.trim();
+      const contact = (data.contact as string)?.trim();
+      return name ? { id: d.id, name, ...(contact ? { contact } : {}) } : null;
     })
     .filter((c): c is Client => c !== null);
+}
+
+/** Обновить данные клиента (ФИО и/или контакт). */
+export async function updateClient(
+  clubId: string,
+  clientId: string,
+  data: { name?: string; contact?: string }
+): Promise<void> {
+  const db = getFirestoreDb();
+  if (!db) throw new Error('Firebase не настроен');
+
+  const payload: Record<string, unknown> = { updatedAt: serverTimestamp() };
+  if (data.name !== undefined) payload.name = data.name.trim();
+  if (data.contact !== undefined) payload.contact = data.contact.trim() || null;
+
+  const docRef = doc(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_CLIENTS, clientId);
+  await updateDoc(docRef, payload);
 }
 
 /** Найти или создать клиента по ФИО. Возвращает id документа клиента. Идемпотентно по имени. */

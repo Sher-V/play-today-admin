@@ -5,10 +5,10 @@ import { getFirebaseAuth } from '../lib/firebase';
 import { getStoredClub, saveClub, clearClub } from '../lib/clubStorage';
 import { getClubByUserIdOrEmail, getCourts } from '../lib/clubsFirestore';
 import { getBookings } from '../lib/bookingsFirestore';
-import { getClients } from '../lib/clientsFirestore';
+import { getClients, updateClient, type Client } from '../lib/clientsFirestore';
 import type { ClubData } from '../lib/clubStorage';
 import type { Booking } from '../App';
-import { LogOut, User, ChevronLeft } from 'lucide-react';
+import { LogOut, User, ChevronLeft, Pencil, X } from 'lucide-react';
 
 const statusLabel: Record<string, string> = {
   hold: 'Ожидает оплаты',
@@ -27,8 +27,13 @@ export function ClientPage() {
   const [club, setClub] = useState<ClubData | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editContact, setEditContact] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const client = useMemo(
     () => (clientId ? clients.find((c) => c.id === clientId) : null),
@@ -51,6 +56,39 @@ export function ClientPage() {
     if (!statusFilter) return clientBookings;
     return clientBookings.filter((b) => (b.status ?? '') === statusFilter);
   }, [clientBookings, statusFilter]);
+
+  const startEditing = () => {
+    if (client) {
+      setEditName(client.name);
+      setEditContact(client.contact ?? '');
+      setSaveError('');
+      setEditing(true);
+    }
+  };
+
+  const cancelEditing = () => {
+    setEditing(false);
+    setSaveError('');
+  };
+
+  const handleSaveClient = async () => {
+    if (!club?.clubId || !clientId || !editName.trim()) return;
+    setSaveError('');
+    setSaving(true);
+    try {
+      await updateClient(club.clubId, clientId, {
+        name: editName.trim(),
+        contact: editContact.trim() || undefined,
+      });
+      const list = await getClients(club.clubId);
+      setClients(list);
+      setEditing(false);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Не удалось сохранить');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -220,15 +258,96 @@ export function ClientPage() {
         ) : client ? (
           <>
             <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900">{client.name}</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Всего бронирований: {clientBookings.length}
-                {clientBookings.some((b) => b.status !== 'canceled') && (
-                  <span className="ml-2">
-                    (активных: {clientBookings.filter((b) => b.status !== 'canceled').length})
-                  </span>
-                )}
-              </p>
+              {!editing ? (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">{client.name}</h2>
+                      {client.contact ? (
+                        <p className="text-sm text-gray-700 mt-1">
+                          Контакт:{' '}
+                          {client.contact.startsWith('http') || client.contact.startsWith('@') || /^\+?\d[\d\s-]+$/.test(client.contact) ? (
+                            <a
+                              href={client.contact.startsWith('http') ? client.contact : client.contact.startsWith('@') ? `https://t.me/${client.contact.slice(1)}` : `tel:${client.contact.replace(/\s/g, '')}`}
+                              target={client.contact.startsWith('http') || client.contact.startsWith('@') ? '_blank' : undefined}
+                              rel={client.contact.startsWith('http') || client.contact.startsWith('@') ? 'noopener noreferrer' : undefined}
+                              className="text-blue-600 hover:underline"
+                            >
+                              {client.contact}
+                            </a>
+                          ) : (
+                            <span>{client.contact}</span>
+                          )}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-500 mt-1">Контакт не указан</p>
+                      )}
+                      <p className="text-sm text-gray-500 mt-1">
+                        Всего бронирований: {clientBookings.length}
+                        {clientBookings.some((b) => b.status !== 'canceled') && (
+                          <span className="ml-2">
+                            (активных: {clientBookings.filter((b) => b.status !== 'canceled').length})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={startEditing}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      Редактировать
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ФИО</label>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="ФИО клиента"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Контакт</label>
+                    <input
+                      type="text"
+                      value={editContact}
+                      onChange={(e) => setEditContact(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Телефон, Telegram, email..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Если клиент из бота, контакт можно взять из бота и вставить сюда</p>
+                  </div>
+                  {saveError && (
+                    <p className="text-sm text-red-600" role="alert">{saveError}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveClient}
+                      disabled={saving || !editName.trim()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                    >
+                      {saving ? 'Сохранение…' : 'Сохранить'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEditing}
+                      disabled={saving}
+                      className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-sm"
+                    >
+                      <X className="w-4 h-4" />
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3 mb-2">
