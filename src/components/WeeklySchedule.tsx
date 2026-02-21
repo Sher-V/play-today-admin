@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
-import { Booking } from '../App';
+import { Booking, activityTypes } from '../App';
 import { generateTimeSlots } from '../lib/timeSlots';
 
 interface WeeklyScheduleProps {
@@ -223,25 +223,16 @@ export function WeeklySchedule({ courts, selectedDate, bookings, openingTime, cl
         </div>
       </div>
 
-      {/* Time labels sidebar */}
+      {/* Легенда: цвета типов бронирования */}
       <div className="border-t bg-gray-50 py-2 px-3">
-        <div className="text-xs text-gray-500 space-y-0.5">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: '#7dd3fc' }}></div>
-            <span>Разовая бронь корта</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: '#3b82f6' }}></div>
-            <span>Группа</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: '#10b981' }}></div>
-            <span>Регулярная бронь корта</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: '#fca5a5' }}></div>
-            <span>Турнир</span>
-          </div>
+        <p className="text-xs font-medium text-gray-600 mb-1.5">Цвета типов бронирования</p>
+        <div className="text-xs text-gray-500 space-y-1.5">
+          {activityTypes.map((type) => (
+            <div key={type.name} className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: type.color }} />
+              <span>{type.name}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
