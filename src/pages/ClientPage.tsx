@@ -258,45 +258,45 @@ export function ClientPage() {
                 Нет бронирований с выбранным статусом.
               </div>
             ) : (
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200 bg-gray-50">
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">Дата</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">Корт</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">Время</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">Активность</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">Статус</th>
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden max-w-full">
+                <table className="w-full max-w-full text-sm table-fixed">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-[1%] whitespace-nowrap">Дата</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-[1%] whitespace-nowrap">Корт</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-[1%] whitespace-nowrap">Время</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Активность</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-[1%] whitespace-nowrap">Статус</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-0">Комментарий</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredBookings.map((b) => (
+                      <tr key={b.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-3 px-4 text-gray-900 align-top whitespace-nowrap">{formatDate(b.date)}</td>
+                        <td className="py-3 px-4 text-gray-700 align-top break-words">{b.courtId}</td>
+                        <td className="py-3 px-4 text-gray-700 align-top whitespace-nowrap">{b.startTime}–{b.endTime}</td>
+                        <td className="py-3 px-4 text-gray-700 align-top break-words">{b.activity}</td>
+                        <td className="py-3 px-4 align-top">
+                          <span
+                            className={
+                              b.status === 'canceled'
+                                ? 'text-gray-500'
+                                : b.status === 'confirmed'
+                                  ? 'text-green-600'
+                                  : 'text-amber-600'
+                            }
+                          >
+                            {b.status ? statusLabel[b.status] ?? b.status : '—'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-gray-600 align-top break-words min-w-0">
+                          {b.comment?.trim() || '—'}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {filteredBookings.map((b) => (
-                        <tr key={b.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="py-3 px-4 text-gray-900">{formatDate(b.date)}</td>
-                          <td className="py-3 px-4 text-gray-700">{b.courtId}</td>
-                          <td className="py-3 px-4 text-gray-700">
-                            {b.startTime}–{b.endTime}
-                          </td>
-                          <td className="py-3 px-4 text-gray-700">{b.activity}</td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={
-                                b.status === 'canceled'
-                                  ? 'text-gray-500'
-                                  : b.status === 'confirmed'
-                                    ? 'text-green-600'
-                                    : 'text-amber-600'
-                              }
-                            >
-                              {b.status ? statusLabel[b.status] ?? b.status : '—'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </>
