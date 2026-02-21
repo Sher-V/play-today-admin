@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { X, Copy, Link2, Plus } from 'lucide-react';
+import { X, Copy, Link2, Plus, User } from 'lucide-react';
 import { Booking, activityTypes } from '../App';
 import { DatePicker } from './DatePicker';
 import { getPriceForBooking, hasPricing } from '../lib/pricing';
@@ -532,6 +532,29 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
                   </div>
                 )}
               </div>
+              {clientId && (
+                <a
+                  href={`/clients/${clientId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Открыть карточку клиента в новой вкладке"
+                  aria-label="Карточка клиента"
+                  style={{
+                    minWidth: '2.5rem',
+                    minHeight: '2.5rem',
+                    width: '2.5rem',
+                    height: '2.5rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: '#3b82f6',
+                    color: '#fff',
+                    border: '1px solid #2563eb',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                  }}
+                  className="flex-none flex items-center justify-center shrink-0 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-opacity"
+                >
+                  <User className="w-5 h-5" strokeWidth={2} />
+                </a>
+              )}
               {isNewClient && clientName.trim() && clubId && (
                 <button
                   type="button"
