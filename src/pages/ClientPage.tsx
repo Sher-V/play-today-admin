@@ -406,7 +406,11 @@ export function ClientPage() {
                                   : 'text-amber-600'
                             }
                           >
-                            {b.status ? statusLabel[b.status] ?? b.status : '—'}
+                            {b.status
+                              ? b.status === 'confirmed'
+                                ? `${statusLabel.confirmed}${b.paymentMethod === 'cash' ? ' (наличными)' : b.paymentMethod === 'card' ? ' (картой)' : ''}`
+                                : statusLabel[b.status] ?? b.status
+                              : '—'}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-gray-600 align-top break-words min-w-0">

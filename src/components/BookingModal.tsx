@@ -87,7 +87,12 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
   const [addClientError, setAddClientError] = useState('');
   const clientInputRef = useRef<HTMLInputElement>(null);
   const clientSuggestionsRef = useRef<HTMLDivElement>(null);
-  const [isPaid, setIsPaid] = useState((existingBooking ?? prefill)?.status === 'confirmed');
+  type PaymentStatus = 'cash' | 'card' | 'unpaid';
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(() => {
+    const src = existingBooking ?? prefill;
+    if (src?.status === 'confirmed') return src.paymentMethod ?? 'card';
+    return 'unpaid';
+  });
   const [needPaymentLink, setNeedPaymentLink] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(1000);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -220,7 +225,8 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
     ...((activity === 'Группа' || activity === 'Персональная тренировка') && coach.trim() ? { coach: coach.trim() } : {}),
     ...(clientId ? { clientId } : {}),
     ...(clientName.trim() ? { clientName: clientName.trim() } : {}),
-    status: isPaid ? 'confirmed' : 'hold',
+    status: paymentStatus === 'unpaid' ? 'hold' : 'confirmed',
+    ...(paymentStatus !== 'unpaid' ? { paymentMethod: paymentStatus } : {}),
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -246,7 +252,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
         ? getPriceForBooking(pricing, selectedDate, selectedTime, calculateEndTime(selectedTime, duration))
         : paymentAmount;
     const options: BookingSaveOptions | undefined =
-      !existingBooking && !isPaid && needPaymentLink
+      !existingBooking && paymentStatus === 'unpaid' && needPaymentLink
         ? { needPaymentLink: true, amount }
         : undefined;
 
@@ -624,22 +630,24 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
             </div>
           )}
 
-          <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isPaid}
-                onChange={(e) => {
-                  setIsPaid(e.target.checked);
-                  if (e.target.checked) setNeedPaymentLink(false);
-                }}
-                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-gray-700">Бронь оплачена</span>
-            </label>
+          <div className="p-3 bg-gray-50 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Статус оплаты</label>
+            <select
+              value={paymentStatus}
+              onChange={(e) => {
+                const v = e.target.value as PaymentStatus;
+                setPaymentStatus(v);
+                if (v !== 'unpaid') setNeedPaymentLink(false);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="cash">Оплачена наличными</option>
+              <option value="card">Оплачена картой</option>
+              <option value="unpaid">Не оплачена</option>
+            </select>
           </div>
 
-          {!existingBooking && !isPaid && (
+          {!existingBooking && paymentStatus === 'unpaid' && (
             <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input

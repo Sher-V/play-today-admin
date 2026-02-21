@@ -79,6 +79,7 @@ export async function getBookings(clubId: string, courts: CourtDoc[]): Promise<B
     const courtName = courtById.get(data.courtId as string) ?? (data.courtId as string);
 
     const status = data.status as 'hold' | 'confirmed' | 'canceled' | undefined;
+    const paymentMethod = data.paymentMethod as 'cash' | 'card' | undefined;
     const coach = data.coach as string | undefined;
     const clientId = data.clientId as string | undefined;
     const clientName = data.clientName as string | undefined;
@@ -92,6 +93,7 @@ export async function getBookings(clubId: string, courts: CourtDoc[]): Promise<B
       comment: (data.comment as string) ?? '',
       color: getColorForActivity(activity),
       ...(status && (status === 'hold' || status === 'confirmed' || status === 'canceled') ? { status } : {}),
+      ...(paymentMethod === 'cash' || paymentMethod === 'card' ? { paymentMethod } : {}),
       ...(coach != null && coach !== '' ? { coach } : {}),
       ...(clientId ? { clientId } : {}),
       ...(clientName != null && clientName !== '' ? { clientName: clientName.trim() } : {}),
@@ -132,6 +134,9 @@ export async function addBookingToFirestore(
   };
   if (booking.status && (booking.status === 'hold' || booking.status === 'confirmed' || booking.status === 'canceled')) {
     payload.status = booking.status;
+  }
+  if (booking.paymentMethod === 'cash' || booking.paymentMethod === 'card') {
+    payload.paymentMethod = booking.paymentMethod;
   }
   if ((type === 'group' || type === 'personal_training') && booking.coach != null && booking.coach.trim() !== '') {
     payload.coach = booking.coach.trim();
@@ -174,6 +179,9 @@ export async function updateBookingInFirestore(
   };
   if (booking.status && (booking.status === 'hold' || booking.status === 'confirmed' || booking.status === 'canceled')) {
     payload.status = booking.status;
+  }
+  if (booking.paymentMethod === 'cash' || booking.paymentMethod === 'card') {
+    payload.paymentMethod = booking.paymentMethod;
   }
   if ((type === 'group' || type === 'personal_training') && booking.coach != null && booking.coach.trim() !== '') {
     payload.coach = booking.coach.trim();

@@ -28,6 +28,8 @@ export interface Booking {
   clientName?: string;
   /** Статус: confirmed — оплачена, hold — ожидает оплаты, canceled — отменена */
   status?: BookingStatus;
+  /** Способ оплаты при status === 'confirmed': наличные или карта */
+  paymentMethod?: 'cash' | 'card';
 }
 
 export const activityTypes = [
