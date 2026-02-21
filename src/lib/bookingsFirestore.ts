@@ -80,6 +80,8 @@ export async function getBookings(clubId: string, courts: CourtDoc[]): Promise<B
 
     const status = data.status as 'hold' | 'confirmed' | 'canceled' | undefined;
     const coach = data.coach as string | undefined;
+    const clientId = data.clientId as string | undefined;
+    const clientName = data.clientName as string | undefined;
     return {
       id: d.id,
       courtId: courtName,
@@ -91,6 +93,8 @@ export async function getBookings(clubId: string, courts: CourtDoc[]): Promise<B
       color: getColorForActivity(activity),
       ...(status && (status === 'hold' || status === 'confirmed' || status === 'canceled') ? { status } : {}),
       ...(coach != null && coach !== '' ? { coach } : {}),
+      ...(clientId ? { clientId } : {}),
+      ...(clientName != null && clientName !== '' ? { clientName: clientName.trim() } : {}),
     } as Booking;
   });
 }
@@ -132,6 +136,12 @@ export async function addBookingToFirestore(
   if ((type === 'group' || type === 'personal_training') && booking.coach != null && booking.coach.trim() !== '') {
     payload.coach = booking.coach.trim();
   }
+  if (booking.clientId) {
+    payload.clientId = booking.clientId;
+  }
+  if (booking.clientName != null && booking.clientName.trim() !== '') {
+    payload.clientName = booking.clientName.trim();
+  }
   const ref = await addDoc(collection(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_BOOKINGS), payload);
 
   return ref.id;
@@ -169,6 +179,16 @@ export async function updateBookingInFirestore(
     payload.coach = booking.coach.trim();
   } else if (type === 'group' || type === 'personal_training') {
     payload.coach = '';
+  }
+  if (booking.clientId) {
+    payload.clientId = booking.clientId;
+  } else {
+    payload.clientId = null;
+  }
+  if (booking.clientName != null && booking.clientName.trim() !== '') {
+    payload.clientName = booking.clientName.trim();
+  } else {
+    payload.clientName = '';
   }
   const docRef = doc(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_BOOKINGS, bookingId);
   await updateDoc(docRef, payload);

@@ -1,10 +1,11 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { X, Copy, Link2 } from 'lucide-react';
 import { Booking, activityTypes } from '../App';
 import { DatePicker } from './DatePicker';
 import { getPriceForBooking, hasPricing } from '../lib/pricing';
 import { generateTimeSlots } from '../lib/timeSlots';
 import type { ClubPricing } from '../types/club-slots';
+import type { Client } from '../lib/clientsFirestore';
 
 export interface BookingSaveOptions {
   needPaymentLink?: boolean;
@@ -26,6 +27,8 @@ interface BookingModalProps {
   existingBooking?: Booking;
   /** Предзаполнение формы (например, после «Вернуться к бронированию» при конфликте). Режим создания. */
   prefill?: Omit<Booking, 'id'>;
+  /** Справочник клиентов клуба (id + ФИО) — для подсказки и связи по clientId. */
+  existingClients?: Client[];
   paymentLink?: string | null;
   /** Прайс по кортам (имя корта → прайс). Для расчёта суммы используется прайс выбранного корта. */
   pricingByCourt?: Record<string, ClubPricing | null | undefined>;
@@ -39,7 +42,7 @@ interface BookingModalProps {
   onRequestCancelSeries?: (booking: Booking) => void;
 }
 
-export function BookingModal({ courts, courtId, time, date, openingTime = '08:00', closingTime = '22:00', initialDuration, existingBooking, prefill, paymentLink, pricingByCourt, bookingsInSeries, onClose, onSave, onRequestCancelBooking, onRequestCancelSeries }: BookingModalProps) {
+export function BookingModal({ courts, courtId, time, date, openingTime = '08:00', closingTime = '22:00', initialDuration, existingBooking, prefill, existingClients = [], paymentLink, pricingByCourt, bookingsInSeries, onClose, onSave, onRequestCancelBooking, onRequestCancelSeries }: BookingModalProps) {
   const calculateDuration = (start: string, end: string) => {
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
@@ -71,6 +74,11 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
     return 4;
   });
   const [coach, setCoach] = useState(existingBooking?.coach ?? prefill?.coach ?? '');
+  const [clientId, setClientId] = useState<string | undefined>(existingBooking?.clientId ?? prefill?.clientId);
+  const [clientName, setClientName] = useState(existingBooking?.clientName ?? prefill?.clientName ?? '');
+  const [clientSuggestionsOpen, setClientSuggestionsOpen] = useState(false);
+  const clientInputRef = useRef<HTMLInputElement>(null);
+  const clientSuggestionsRef = useRef<HTMLDivElement>(null);
   const [isPaid, setIsPaid] = useState((existingBooking ?? prefill)?.status === 'confirmed');
   const [needPaymentLink, setNeedPaymentLink] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(1000);
@@ -109,6 +117,15 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
   const selectedActivity = activityTypes.find(a => a.name === activity) || activityTypes[0];
   const isRecurringType = activity === 'Группа' || activity === 'Регулярная бронь корта' || activity === 'Персональная тренировка';
   const isOneTime = activity === 'Разовая бронь корта';
+
+  /** Подсказки клиентов: только по введённому тексту (без учёта регистра), не более 10. */
+  const clientSuggestions = useMemo(() => {
+    const q = clientName.trim().toLowerCase();
+    if (!q) return [];
+    return existingClients
+      .filter((c) => c.name.trim().toLowerCase().includes(q) && c.name.trim() !== clientName.trim())
+      .slice(0, 10);
+  }, [clientName, existingClients]);
 
   /** Только активные (не отменённые) брони серии — для расчёта количества занятий. */
   const activeInSeries = useMemo(
@@ -160,6 +177,8 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
     isRecurring: isRecurringType,
     recurringEndDate: isRecurringType ? effectiveRecurringEndDate : undefined,
     ...((activity === 'Группа' || activity === 'Персональная тренировка') && coach.trim() ? { coach: coach.trim() } : {}),
+    ...(clientId ? { clientId } : {}),
+    ...(clientName.trim() ? { clientName: clientName.trim() } : {}),
     status: isPaid ? 'confirmed' : 'hold',
   });
 
@@ -247,6 +266,8 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
               isRecurring: isRecurringType,
               recurringEndDate: isRecurringType ? effectiveRecurringEndDate : undefined,
               ...((activity === 'Группа' || activity === 'Персональная тренировка') && coach.trim() ? { coach: coach.trim() } : {}),
+              ...(clientId ? { clientId } : {}),
+              ...(clientName.trim() ? { clientName: clientName.trim() } : {}),
               status: 'canceled',
             },
             existingBooking.id,
@@ -427,6 +448,46 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
                 <option key={type.name} value={type.name}>{type.name}</option>
               ))}
             </select>
+          </div>
+
+          <div className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Клиент</label>
+            <input
+              ref={clientInputRef}
+              type="text"
+              value={clientName}
+              onChange={(e) => {
+                setClientName(e.target.value);
+                setClientId(undefined);
+                setClientSuggestionsOpen(true);
+              }}
+              onFocus={() => clientName.trim() && setClientSuggestionsOpen(true)}
+              onBlur={() => setTimeout(() => setClientSuggestionsOpen(false), 200)}
+              placeholder="ФИО клиента"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {clientSuggestionsOpen && clientSuggestions.length > 0 && (
+              <div
+                ref={clientSuggestionsRef}
+                className="absolute z-10 w-full mt-1 py-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+              >
+                {clientSuggestions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setClientId(c.id);
+                      setClientName(c.name);
+                      setClientSuggestionsOpen(false);
+                    }}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {(activity === 'Группа' || activity === 'Персональная тренировка') && (

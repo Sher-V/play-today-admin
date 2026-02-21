@@ -20,6 +20,10 @@ export interface Booking {
   recurringEndDate?: string;
   /** Тренер (для групповых и персональных тренировок) */
   coach?: string;
+  /** ID документа клиента в подколлекции clubs/{clubId}/clients (связь с клиентом). */
+  clientId?: string;
+  /** ФИО клиента (для отображения, дублируется из справочника клиентов). */
+  clientName?: string;
   /** Статус: confirmed — оплачена, hold — ожидает оплаты, canceled — отменена */
   status?: BookingStatus;
 }

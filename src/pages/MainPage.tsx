@@ -9,6 +9,7 @@ import {
   addBookingToFirestore,
   updateBookingInFirestore,
 } from '../lib/bookingsFirestore';
+import { getClients, ensureClient, type Client } from '../lib/clientsFirestore';
 import type { ClubData } from '../lib/clubStorage';
 import type { CourtDoc } from '../types/club-slots';
 import { BookingCalendar } from '../components/BookingCalendar';
@@ -47,6 +48,7 @@ export function MainPage() {
     parseDateFromUrl(window.location.search) ?? today()
   );
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ courtId: string; time: string; duration?: number; date?: string } | null>(null);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
@@ -146,6 +148,7 @@ export function MainPage() {
     if (!club?.clubId) {
       setCourts([]);
       setBookings([]);
+      setClients([]);
       setScheduleLoading(false);
       return;
     }
@@ -160,9 +163,13 @@ export function MainPage() {
           if (cancelled) return;
         }
         setCourts(courtsList);
-        const list = await getBookings(club.clubId!, courtsList);
+        const [list, clientNames] = await Promise.all([
+          getBookings(club.clubId!, courtsList),
+          getClients(club.clubId!),
+        ]);
         if (cancelled) return;
         setBookings(list);
+        setClients(clientNames);
       } finally {
         if (!cancelled) setScheduleLoading(false);
       }
@@ -282,6 +289,8 @@ export function MainPage() {
         b.endTime === editingBooking.endTime
     );
   }, [bookings, editingBooking]);
+  /** ФИО клиентов из подколлекции клуба — для подсказки в форме бронирования. */
+  const existingClients = clients;
 
   if (!authChecked) {
     return (
@@ -326,6 +335,20 @@ export function MainPage() {
     setBookings(list);
   };
 
+  const loadClients = async () => {
+    if (!club?.clubId) return;
+    const list = await getClients(club.clubId);
+    setClients(list);
+  };
+
+  /** Подставить clientId в бронь по clientName (найти или создать клиента). */
+  const resolveBookingClientId = async (b: Omit<Booking, 'id'>): Promise<Omit<Booking, 'id'>> => {
+    if (!b.clientName?.trim() || b.clientId) return b;
+    if (!club?.clubId) return b;
+    const id = await ensureClient(club.clubId, b.clientName.trim());
+    return { ...b, clientId: id };
+  };
+
   const handleAddBooking = async (booking: Omit<Booking, 'id'>, bookingId?: string, options?: BookingSaveOptions) => {
     if (!club?.clubId) {
       alert('Клуб не загружен. Обновите страницу.');
@@ -338,6 +361,7 @@ export function MainPage() {
 
     if (bookingId) {
       try {
+        let resolvedBooking = await resolveBookingClientId(booking);
         if (options?.applyCommentToSeries) {
           const sameSeries = bookings.filter(
             (b) =>
@@ -371,10 +395,10 @@ export function MainPage() {
                 b.endTime === booking.endTime
             )
             .sort((a, b) => (a.date < b.date ? -1 : 1));
-          const lastSeriesDate = sameSeries.length > 0 ? sameSeries[sameSeries.length - 1].date : booking.date;
-          const newEndDate = booking.recurringEndDate;
+          const lastSeriesDate = sameSeries.length > 0 ? sameSeries[sameSeries.length - 1].date : resolvedBooking.date;
+          const newEndDate = resolvedBooking.recurringEndDate;
 
-          await updateBookingInFirestore(club.clubId, bookingId, booking, courts);
+          await updateBookingInFirestore(club.clubId, bookingId, resolvedBooking, courts);
 
           if (newEndDate < lastSeriesDate) {
             for (const b of sameSeries) {
@@ -415,9 +439,9 @@ export function MainPage() {
                   await addBookingToFirestore(
                     club.clubId,
                     {
-                      ...booking,
+                      ...resolvedBooking,
                       date: dateStr,
-                      coach: booking.coach,
+                      coach: resolvedBooking.coach,
                     },
                     courts
                   );
@@ -429,9 +453,10 @@ export function MainPage() {
             }
           }
         } else {
-          await updateBookingInFirestore(club.clubId, bookingId, booking, courts);
+          await updateBookingInFirestore(club.clubId, bookingId, resolvedBooking, courts);
         }
         await loadBookings();
+        if (resolvedBooking.clientName?.trim()) await loadClients();
         setModalOpen(false);
         setReturnToBookingDraft(null);
       } catch (e) {
@@ -442,23 +467,24 @@ export function MainPage() {
     }
 
     if (booking.isRecurring && booking.recurringEndDate) {
+      const resolvedBooking = await resolveBookingClientId(booking);
       const addWeek = (dateStr: string): string => {
         const d = new Date(dateStr + 'T12:00:00');
         d.setDate(d.getDate() + 7);
         return d.toISOString().slice(0, 10);
       };
-      let dateStr = booking.date;
+      let dateStr = resolvedBooking.date;
       const endDateStr = booking.recurringEndDate;
       const conflictingDates: string[] = [];
       const datesToCreate: string[] = [];
 
       while (dateStr <= endDateStr) {
         const hasConflict = visibleBookings.some(b => {
-          if (b.courtId !== booking.courtId || b.date !== dateStr) return false;
+          if (b.courtId !== resolvedBooking.courtId || b.date !== dateStr) return false;
           const existingStart = parseInt(b.startTime.replace(':', ''));
           const existingEnd = parseInt(b.endTime.replace(':', ''));
-          const newStart = parseInt(booking.startTime.replace(':', ''));
-          const newEnd = parseInt(booking.endTime.replace(':', ''));
+          const newStart = parseInt(resolvedBooking.startTime.replace(':', ''));
+          const newEnd = parseInt(resolvedBooking.endTime.replace(':', ''));
           return (newStart < existingEnd && newEnd > existingStart);
         });
         if (hasConflict) {
@@ -482,7 +508,7 @@ export function MainPage() {
         try {
           await addBookingToFirestore(
             club.clubId,
-            { ...booking, date: d },
+            { ...resolvedBooking, date: d },
             courts
           );
           created++;
@@ -494,6 +520,7 @@ export function MainPage() {
       }
 
       await loadBookings();
+      if (resolvedBooking.clientName?.trim()) await loadClients();
       setModalOpen(false);
       setReturnToBookingDraft(null);
       if (created === 0) {
@@ -518,12 +545,14 @@ export function MainPage() {
     }
 
     try {
-      await addBookingToFirestore(club.clubId, booking, courts);
+      const resolvedBooking = await resolveBookingClientId(booking);
+      await addBookingToFirestore(club.clubId, resolvedBooking, courts);
       await loadBookings();
+      if (resolvedBooking.clientName?.trim()) await loadClients();
 
       if (options?.needPaymentLink) {
         try {
-          const description = `Бронь корта: ${booking.courtId}, ${booking.date} ${booking.startTime}–${booking.endTime}. ${booking.comment}`.slice(0, 128);
+          const description = `Бронь корта: ${resolvedBooking.courtId}, ${resolvedBooking.date} ${resolvedBooking.startTime}–${resolvedBooking.endTime}. ${resolvedBooking.comment}`.slice(0, 128);
           const url = await createPaymentLink({
             amount: options.amount,
             description,
@@ -763,6 +792,7 @@ export function MainPage() {
               initialDuration={returnToBookingDraft ? undefined : selectedSlot?.duration}
               existingBooking={returnToBookingDraft ? undefined : editingBooking ?? undefined}
               prefill={returnToBookingDraft ?? undefined}
+              existingClients={existingClients}
               bookingsInSeries={bookingsInSeries}
               paymentLink={paymentLink}
               pricingByCourt={pricingByCourt}

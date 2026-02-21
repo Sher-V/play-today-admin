@@ -34,8 +34,13 @@
   **Структура Firestore** (как в ADMIN_README):
   - `clubs/{clubId}` — документ клуба (name, city, email, courtsCount, openingTime, closingTime, userId, createdAt, updatedAt).
   - `clubs/{clubId}/courts/{courtId}` — подколлекция кортов (Корт 1, Корт 2, … по courtsCount; поля name, order, createdAt, updatedAt).
-  - `clubs/{clubId}/bookings/{bookingId}` — подколлекция броней (для дальнейшей интеграции: courtId, type, startTime, endTime, comment, firstSessionDate, lastSessionDate).
+  - `clubs/{clubId}/bookings/{bookingId}` — подколлекция броней (courtId, type, startTime, endTime, comment, clientName, firstSessionDate, lastSessionDate и др.).
+  - `clubs/{clubId}/clients/{clientId}` — подколлекция клиентов клуба (name — ФИО). Справочник для подсказки в форме брони; при сохранении брони с новым ФИО клиент добавляется в подколлекцию.
   Типы и константы: `src/types/club-slots.ts`.
+
+  ### Поле «Клиент» в бронировании
+
+  В форме создания и редактирования брони есть поле **«Клиент»** (ФИО). Значение сохраняется в документе брони как `clientName`. Подсказки при вводе берутся из подколлекции **clients** клуба (поиск по вводу, без учёта регистра). При сохранении брони с новым ФИО клиент автоматически добавляется в подколлекцию `clients`.
 
   ## Авторизация и маршруты
 
