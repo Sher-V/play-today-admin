@@ -223,8 +223,8 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
     isRecurring: isRecurringType,
     recurringEndDate: isRecurringType ? effectiveRecurringEndDate : undefined,
     ...((activity === 'Группа' || activity === 'Персональная тренировка') && coach.trim() ? { coach: coach.trim() } : {}),
-    ...(clientId ? { clientId } : {}),
-    ...(clientName.trim() ? { clientName: clientName.trim() } : {}),
+    ...(activity !== 'Группа' && activity !== 'Турнир' && clientId ? { clientId } : {}),
+    ...(activity !== 'Группа' && activity !== 'Турнир' && clientName.trim() ? { clientName: clientName.trim() } : {}),
     status: paymentStatus === 'unpaid' ? 'hold' : 'confirmed',
     ...(paymentStatus !== 'unpaid' ? { paymentMethod: paymentStatus } : {}),
   });
@@ -313,8 +313,8 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
               isRecurring: isRecurringType,
               recurringEndDate: isRecurringType ? effectiveRecurringEndDate : undefined,
               ...((activity === 'Группа' || activity === 'Персональная тренировка') && coach.trim() ? { coach: coach.trim() } : {}),
-              ...(clientId ? { clientId } : {}),
-              ...(clientName.trim() ? { clientName: clientName.trim() } : {}),
+              ...(activity !== 'Группа' && activity !== 'Турнир' && clientId ? { clientId } : {}),
+              ...(activity !== 'Группа' && activity !== 'Турнир' && clientName.trim() ? { clientName: clientName.trim() } : {}),
               status: 'canceled',
             },
             existingBooking.id,
@@ -497,6 +497,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
             </select>
           </div>
 
+          {activity !== 'Группа' && activity !== 'Турнир' && (
           <div className="relative overflow-visible">
             <label className="block text-sm font-medium text-gray-700 mb-1">Клиент</label>
             <div className="flex flex-nowrap gap-2 items-center">
@@ -588,6 +589,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
               )}
             </div>
           </div>
+          )}
 
           {(activity === 'Группа' || activity === 'Персональная тренировка') && (
             <div>
