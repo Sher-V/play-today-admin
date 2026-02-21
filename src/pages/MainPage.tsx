@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Navigate, Link, useSearchParams } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirebaseAuth } from '../lib/firebase';
@@ -60,10 +60,14 @@ export function MainPage() {
   /** Результат создания регулярных бронирований: показываем модалку вместо alert. */
   const [recurringResult, setRecurringResult] = useState<
     | { type: 'success'; created: number }
-    | { type: 'partial'; created: number; skippedDates: string[] }
+    | { type: 'conflict'; conflictingDates: string[] }
     | { type: 'none' }
     | null
   >(null);
+  /** Черновик брони при возврате из модалки «Не удалось создать бронь» — чтобы снова открыть форму с теми же данными. */
+  const [returnToBookingDraft, setReturnToBookingDraft] = useState<Omit<Booking, 'id'> | null>(null);
+  /** При конфликте модалка после onSave вызывает onClose — не очищать черновик при этом закрытии. */
+  const skipClearReturnToBookingDraftRef = useRef(false);
 
   const setSelectedDate = useCallback(
     (date: string) => {
@@ -356,11 +360,80 @@ export function MainPage() {
             };
             await updateBookingInFirestore(club.clubId, b.id, payload, courts);
           }
+        } else if (booking.isRecurring && booking.recurringEndDate) {
+          // Редактирование группы/регулярной серии: синхронизируем количество занятий с таблицей
+          const sameSeries = bookings
+            .filter(
+              (b) =>
+                b.status !== 'canceled' &&
+                b.courtId === booking.courtId &&
+                b.startTime === booking.startTime &&
+                b.endTime === booking.endTime
+            )
+            .sort((a, b) => (a.date < b.date ? -1 : 1));
+          const lastSeriesDate = sameSeries.length > 0 ? sameSeries[sameSeries.length - 1].date : booking.date;
+          const newEndDate = booking.recurringEndDate;
+
+          await updateBookingInFirestore(club.clubId, bookingId, booking, courts);
+
+          if (newEndDate < lastSeriesDate) {
+            for (const b of sameSeries) {
+              if (b.date > newEndDate && b.id !== bookingId) {
+                const payload: Omit<Booking, 'id'> = {
+                  courtId: b.courtId,
+                  date: b.date,
+                  startTime: b.startTime,
+                  endTime: b.endTime,
+                  activity: b.activity,
+                  comment: b.comment,
+                  color: b.color,
+                  isRecurring: b.isRecurring,
+                  recurringEndDate: b.recurringEndDate,
+                  status: 'canceled',
+                };
+                await updateBookingInFirestore(club.clubId, b.id, payload, courts);
+              }
+            }
+          } else if (newEndDate > lastSeriesDate) {
+            const addWeek = (dateStr: string): string => {
+              const d = new Date(dateStr + 'T12:00:00');
+              d.setDate(d.getDate() + 7);
+              return d.toISOString().slice(0, 10);
+            };
+            let dateStr = addWeek(lastSeriesDate);
+            while (dateStr <= newEndDate) {
+              const hasConflict = visibleBookings.some(
+                (b) =>
+                  b.courtId === booking.courtId &&
+                  b.date === dateStr &&
+                  b.startTime === booking.startTime &&
+                  b.endTime === booking.endTime &&
+                  b.status !== 'canceled'
+              );
+              if (!hasConflict) {
+                try {
+                  await addBookingToFirestore(
+                    club.clubId,
+                    {
+                      ...booking,
+                      date: dateStr,
+                      coach: booking.coach,
+                    },
+                    courts
+                  );
+                } catch {
+                  // пропустить дату при конфликте
+                }
+              }
+              dateStr = addWeek(dateStr);
+            }
+          }
         } else {
           await updateBookingInFirestore(club.clubId, bookingId, booking, courts);
         }
         await loadBookings();
         setModalOpen(false);
+        setReturnToBookingDraft(null);
       } catch (e) {
         console.error(e);
         alert(e instanceof Error ? e.message : 'Не удалось обновить бронь.');
@@ -369,14 +442,17 @@ export function MainPage() {
     }
 
     if (booking.isRecurring && booking.recurringEndDate) {
-      const startDate = new Date(booking.date);
-      const endDate = new Date(booking.recurringEndDate);
-      let currentDate = new Date(startDate);
-      let created = 0;
-      const skippedDates: string[] = [];
+      const addWeek = (dateStr: string): string => {
+        const d = new Date(dateStr + 'T12:00:00');
+        d.setDate(d.getDate() + 7);
+        return d.toISOString().slice(0, 10);
+      };
+      let dateStr = booking.date;
+      const endDateStr = booking.recurringEndDate;
+      const conflictingDates: string[] = [];
+      const datesToCreate: string[] = [];
 
-      while (currentDate <= endDate) {
-        const dateStr = currentDate.toISOString().split('T')[0];
+      while (dateStr <= endDateStr) {
         const hasConflict = visibleBookings.some(b => {
           if (b.courtId !== booking.courtId || b.date !== dateStr) return false;
           const existingStart = parseInt(b.startTime.replace(':', ''));
@@ -385,29 +461,43 @@ export function MainPage() {
           const newEnd = parseInt(booking.endTime.replace(':', ''));
           return (newStart < existingEnd && newEnd > existingStart);
         });
-        if (!hasConflict) {
-          try {
-            await addBookingToFirestore(
-              club.clubId,
-              { ...booking, date: dateStr },
-              courts
-            );
-            created++;
-          } catch {
-            skippedDates.push(new Date(dateStr).toLocaleDateString('ru-RU'));
-          }
+        if (hasConflict) {
+          conflictingDates.push(new Date(dateStr).toLocaleDateString('ru-RU'));
         } else {
-          skippedDates.push(new Date(dateStr).toLocaleDateString('ru-RU'));
+          datesToCreate.push(dateStr);
         }
-        currentDate.setDate(currentDate.getDate() + 7);
+        dateStr = addWeek(dateStr);
+      }
+
+      if (conflictingDates.length > 0) {
+        skipClearReturnToBookingDraftRef.current = true;
+        setReturnToBookingDraft(booking);
+        setModalOpen(false);
+        setRecurringResult({ type: 'conflict', conflictingDates });
+        return;
+      }
+
+      let created = 0;
+      for (const d of datesToCreate) {
+        try {
+          await addBookingToFirestore(
+            club.clubId,
+            { ...booking, date: d },
+            courts
+          );
+          created++;
+        } catch {
+          setModalOpen(false);
+          setRecurringResult({ type: 'none' });
+          return;
+        }
       }
 
       await loadBookings();
       setModalOpen(false);
+      setReturnToBookingDraft(null);
       if (created === 0) {
         setRecurringResult({ type: 'none' });
-      } else if (skippedDates.length > 0) {
-        setRecurringResult({ type: 'partial', created, skippedDates });
       } else {
         setRecurringResult({ type: 'success', created });
       }
@@ -446,6 +536,7 @@ export function MainPage() {
         }
       } else {
         setModalOpen(false);
+        setReturnToBookingDraft(null);
       }
     } catch (e) {
       console.error(e);
@@ -454,10 +545,19 @@ export function MainPage() {
   };
 
   const handleCloseModal = () => {
+    if (skipClearReturnToBookingDraftRef.current) {
+      skipClearReturnToBookingDraftRef.current = false;
+      setPaymentLink(null);
+      setModalOpen(false);
+      setSelectedSlot(null);
+      setEditingBooking(null);
+      return;
+    }
     setPaymentLink(null);
     setModalOpen(false);
     setSelectedSlot(null);
     setEditingBooking(null);
+    setReturnToBookingDraft(null);
   };
 
   const handleCancelBookingFromCalendar = async (booking: Booking) => {
@@ -474,6 +574,7 @@ export function MainPage() {
         isRecurring: booking.isRecurring,
         recurringEndDate: booking.recurringEndDate,
         status: 'canceled',
+        ...(booking.coach != null ? { coach: booking.coach } : {}),
       };
       await updateBookingInFirestore(club.clubId, booking.id, payload, courts);
       await loadBookings();
@@ -508,6 +609,7 @@ export function MainPage() {
           isRecurring: b.isRecurring,
           recurringEndDate: b.recurringEndDate,
           status: 'canceled',
+          ...(b.coach != null ? { coach: b.coach } : {}),
         };
         await updateBookingInFirestore(club.clubId, b.id, payload, courts);
       }
@@ -650,16 +752,17 @@ export function MainPage() {
             )}
           </div>
 
-          {modalOpen && (selectedSlot || editingBooking || paymentLink) && (
+          {modalOpen && (selectedSlot || editingBooking || paymentLink || returnToBookingDraft) && (
             <BookingModal
               courts={courtNames}
-              courtId={editingBooking?.courtId || selectedSlot?.courtId || ''}
-              time={editingBooking?.startTime || selectedSlot?.time || ''}
-              date={editingBooking?.date || selectedSlot?.date || selectedDate}
+              courtId={returnToBookingDraft?.courtId ?? editingBooking?.courtId ?? selectedSlot?.courtId ?? ''}
+              time={returnToBookingDraft?.startTime ?? editingBooking?.startTime ?? selectedSlot?.time ?? ''}
+              date={returnToBookingDraft?.date ?? editingBooking?.date ?? selectedSlot?.date ?? selectedDate}
               openingTime={club?.openingTime ?? '08:00'}
               closingTime={club?.closingTime ?? '22:00'}
-              initialDuration={selectedSlot?.duration}
-              existingBooking={editingBooking || undefined}
+              initialDuration={returnToBookingDraft ? undefined : selectedSlot?.duration}
+              existingBooking={returnToBookingDraft ? undefined : editingBooking ?? undefined}
+              prefill={returnToBookingDraft ?? undefined}
               bookingsInSeries={bookingsInSeries}
               paymentLink={paymentLink}
               pricingByCourt={pricingByCourt}
@@ -687,7 +790,7 @@ export function MainPage() {
                   w-[min(100%,24rem)] min-w-[280px] shrink-0
                   bg-white rounded-2xl shadow-2xl overflow-hidden relative
                   ${recurringResult.type === 'success' ? 'ring-1 ring-emerald-200' : ''}
-                  ${recurringResult.type === 'partial' ? 'ring-1 ring-amber-200' : ''}
+                  ${recurringResult.type === 'conflict' ? 'ring-1 ring-red-200' : ''}
                   ${recurringResult.type === 'none' ? 'ring-1 ring-red-200' : ''}
                 `}
                 onClick={(e) => e.stopPropagation()}
@@ -697,7 +800,7 @@ export function MainPage() {
                   className={`
                     h-1 w-full rounded-t-2xl
                     ${recurringResult.type === 'success' ? 'bg-emerald-500' : ''}
-                    ${recurringResult.type === 'partial' ? 'bg-amber-500' : ''}
+                    ${recurringResult.type === 'conflict' ? 'bg-red-500' : ''}
                     ${recurringResult.type === 'none' ? 'bg-red-500' : ''}
                   `}
                 />
@@ -723,22 +826,33 @@ export function MainPage() {
                       </p>
                     </div>
                   )}
-                  {recurringResult.type === 'partial' && (
+                  {recurringResult.type === 'conflict' && (
                     <div className="text-center">
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-50 mb-5">
-                        <AlertCircle className="w-10 h-10 text-amber-600" strokeWidth={2} />
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-50 mb-5">
+                        <AlertCircle className="w-10 h-10 text-red-600" strokeWidth={2} />
                       </div>
-                      <h2 className="text-xl font-semibold text-gray-900 mb-2">Создано частично</h2>
+                      <h2 className="text-xl font-semibold text-gray-900 mb-2">Не удалось создать бронь</h2>
                       <p className="text-gray-600 leading-relaxed mb-3">
-                        Создано бронирований: <strong className="text-amber-700">{recurringResult.created}</strong>.
+                        На следующих датах есть пересечения с существующими бронированиями:
                       </p>
-                      <p className="text-sm text-gray-500 leading-relaxed mb-2">
-                        Пропущено дат: {recurringResult.skippedDates.length}{' '}
-                        (заняты или ошибка):{' '}
-                        {recurringResult.skippedDates.slice(0, 5).join(', ')}
-                        {recurringResult.skippedDates.length > 5 ? '…' : ''}
+                      <p className="text-sm text-gray-600 leading-relaxed mb-2">
+                        {recurringResult.conflictingDates.slice(0, 10).join(', ')}
+                        {recurringResult.conflictingDates.length > 10
+                          ? ` … и ещё ${recurringResult.conflictingDates.length - 10}`
+                          : ''}
                       </p>
-                      <p className="text-gray-600 text-sm">Остальные даты добавлены в календарь.</p>
+                      <p className="text-gray-500 text-sm mb-6">Измените даты или время и попробуйте снова.</p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRecurringResult(null);
+                          setTimeout(() => setModalOpen(true), 0);
+                        }}
+                        className="w-full py-3.5 px-5 bg-blue-600 text-white font-medium rounded-2xl hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm"
+                      >
+                        Вернуться к бронированию
+                      </button>
                     </div>
                   )}
                   {recurringResult.type === 'none' && (

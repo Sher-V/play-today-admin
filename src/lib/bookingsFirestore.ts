@@ -25,6 +25,7 @@ const ACTIVITY_TO_TYPE: Record<string, BookingType> = {
   'Группа': 'group',
   'Регулярная бронь корта': 'regular',
   'Турнир': 'tournament',
+  'Персональная тренировка': 'personal_training',
 };
 
 function activityToType(activity: string): BookingType {
@@ -128,7 +129,7 @@ export async function addBookingToFirestore(
   if (booking.status && (booking.status === 'hold' || booking.status === 'confirmed' || booking.status === 'canceled')) {
     payload.status = booking.status;
   }
-  if (type === 'group' && booking.coach != null && booking.coach.trim() !== '') {
+  if ((type === 'group' || type === 'personal_training') && booking.coach != null && booking.coach.trim() !== '') {
     payload.coach = booking.coach.trim();
   }
   const ref = await addDoc(collection(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_BOOKINGS), payload);
@@ -164,9 +165,9 @@ export async function updateBookingInFirestore(
   if (booking.status && (booking.status === 'hold' || booking.status === 'confirmed' || booking.status === 'canceled')) {
     payload.status = booking.status;
   }
-  if (type === 'group' && booking.coach != null && booking.coach.trim() !== '') {
+  if ((type === 'group' || type === 'personal_training') && booking.coach != null && booking.coach.trim() !== '') {
     payload.coach = booking.coach.trim();
-  } else if (type === 'group') {
+  } else if (type === 'group' || type === 'personal_training') {
     payload.coach = '';
   }
   const docRef = doc(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_BOOKINGS, bookingId);

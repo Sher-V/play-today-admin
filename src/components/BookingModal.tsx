@@ -24,6 +24,8 @@ interface BookingModalProps {
   closingTime?: string;
   initialDuration?: number;
   existingBooking?: Booking;
+  /** Предзаполнение формы (например, после «Вернуться к бронированию» при конфликте). Режим создания. */
+  prefill?: Omit<Booking, 'id'>;
   paymentLink?: string | null;
   /** Прайс по кортам (имя корта → прайс). Для расчёта суммы используется прайс выбранного корта. */
   pricingByCourt?: Record<string, ClubPricing | null | undefined>;
@@ -37,7 +39,7 @@ interface BookingModalProps {
   onRequestCancelSeries?: (booking: Booking) => void;
 }
 
-export function BookingModal({ courts, courtId, time, date, openingTime = '08:00', closingTime = '22:00', initialDuration, existingBooking, paymentLink, pricingByCourt, bookingsInSeries, onClose, onSave, onRequestCancelBooking, onRequestCancelSeries }: BookingModalProps) {
+export function BookingModal({ courts, courtId, time, date, openingTime = '08:00', closingTime = '22:00', initialDuration, existingBooking, prefill, paymentLink, pricingByCourt, bookingsInSeries, onClose, onSave, onRequestCancelBooking, onRequestCancelSeries }: BookingModalProps) {
   const calculateDuration = (start: string, end: string) => {
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
@@ -47,14 +49,29 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
   const [selectedCourtId, setSelectedCourtId] = useState(courtId);
   const [selectedDate, setSelectedDate] = useState(date);
   const [selectedTime, setSelectedTime] = useState(time);
-  const [comment, setComment] = useState(existingBooking?.comment || '');
-  const [activity, setActivity] = useState(existingBooking?.activity || activityTypes[0].name);
+  const [comment, setComment] = useState(existingBooking?.comment ?? prefill?.comment ?? '');
+  const [activity, setActivity] = useState(existingBooking?.activity ?? prefill?.activity ?? activityTypes[0].name);
   const [duration, setDuration] = useState(
-    existingBooking ? calculateDuration(existingBooking.startTime, existingBooking.endTime) : (initialDuration || 1)
+    existingBooking
+      ? calculateDuration(existingBooking.startTime, existingBooking.endTime)
+      : prefill
+        ? calculateDuration(prefill.startTime, prefill.endTime)
+        : (initialDuration ?? 1)
   );
-  const [recurringEndDate, setRecurringEndDate] = useState(existingBooking?.recurringEndDate || '');
-  const [coach, setCoach] = useState(existingBooking?.coach ?? '');
-  const [isPaid, setIsPaid] = useState(existingBooking?.status === 'confirmed');
+  /** Количество занятий в серии (для группы и регулярных). Дата окончания = дата начала + (sessionCount - 1) недель. */
+  const [sessionCount, setSessionCount] = useState(() => {
+    const source = existingBooking ?? prefill;
+    if (source?.recurringEndDate && source?.date) {
+      const start = new Date(source.date + 'T12:00:00').getTime();
+      const end = new Date(source.recurringEndDate + 'T12:00:00').getTime();
+      const weeks = (end - start) / (7 * 24 * 60 * 60 * 1000);
+      const count = Math.floor(weeks) + 1;
+      return Math.max(1, Math.min(104, count));
+    }
+    return 4;
+  });
+  const [coach, setCoach] = useState(existingBooking?.coach ?? prefill?.coach ?? '');
+  const [isPaid, setIsPaid] = useState((existingBooking ?? prefill)?.status === 'confirmed');
   const [needPaymentLink, setNeedPaymentLink] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(1000);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -90,15 +107,43 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
   }, [selectedTime, closingTime]);
 
   const selectedActivity = activityTypes.find(a => a.name === activity) || activityTypes[0];
-  const isRecurringType = activity === 'Группа' || activity === 'Регулярная бронь корта';
+  const isRecurringType = activity === 'Группа' || activity === 'Регулярная бронь корта' || activity === 'Персональная тренировка';
   const isOneTime = activity === 'Разовая бронь корта';
 
-  /** При редактировании брони серии — дата последней брони в серии (для поля «Дата окончания серии»). */
+  /** Только активные (не отменённые) брони серии — для расчёта количества занятий. */
+  const activeInSeries = useMemo(
+    () => bookingsInSeries?.filter((b) => b.status !== 'canceled') ?? [],
+    [bookingsInSeries]
+  );
+  /** При редактировании брони серии — дата первой и последней активной брони. */
+  const firstSeriesDate = useMemo(() => {
+    if (!activeInSeries.length) return existingBooking?.date;
+    return activeInSeries.reduce((min, b) => (b.date < min ? b.date : min), activeInSeries[0].date);
+  }, [activeInSeries, existingBooking?.date]);
   const lastSeriesDate = useMemo(() => {
-    if (!bookingsInSeries?.length) return undefined;
-    return bookingsInSeries.reduce((max, b) => (b.date > max ? b.date : max), bookingsInSeries[0].date);
-  }, [bookingsInSeries]);
-  const effectiveRecurringEndDate = recurringEndDate || lastSeriesDate || '';
+    if (!activeInSeries.length) return undefined;
+    return activeInSeries.reduce((max, b) => (b.date > max ? b.date : max), activeInSeries[0].date);
+  }, [activeInSeries]);
+
+  /** Добавить N недель к дате YYYY-MM-DD, вернуть YYYY-MM-DD. */
+  const addWeeks = (dateStr: string, weeks: number): string => {
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() + weeks * 7);
+    return d.toISOString().slice(0, 10);
+  };
+
+  /** Дата первого занятия серии: при редактировании серии — firstSeriesDate, при создании — выбранная дата. */
+  const seriesStartDate = activeInSeries.length > 0 && firstSeriesDate ? firstSeriesDate : selectedDate;
+  /** Дата окончания серии, рассчитанная от первого занятия и количества занятий. */
+  const effectiveRecurringEndDate = sessionCount >= 1 ? addWeeks(seriesStartDate, sessionCount - 1) : '';
+
+  /** При открытии редактирования серии — подставить реальное количество занятий (число активных броней). */
+  useEffect(() => {
+    if (existingBooking && activeInSeries.length > 0) {
+      setSessionCount(Math.max(1, Math.min(104, activeInSeries.length)));
+    }
+  }, [existingBooking, activeInSeries.length]);
+
   const useCalculatedAmount = isOneTime && needPaymentLink && hasPricing(pricing ?? undefined);
   const calculatedAmount = useCalculatedAmount && pricing
     ? getPriceForBooking(pricing, selectedDate, selectedTime, calculateEndTime(selectedTime, duration))
@@ -113,8 +158,8 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
     comment: comment.trim(),
     color: selectedActivity.color,
     isRecurring: isRecurringType,
-    recurringEndDate: isRecurringType ? (recurringEndDate || lastSeriesDate) : undefined,
-    ...(activity === 'Группа' && coach.trim() ? { coach: coach.trim() } : {}),
+    recurringEndDate: isRecurringType ? effectiveRecurringEndDate : undefined,
+    ...((activity === 'Группа' || activity === 'Персональная тренировка') && coach.trim() ? { coach: coach.trim() } : {}),
     status: isPaid ? 'confirmed' : 'hold',
   });
 
@@ -123,13 +168,8 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
     if (!comment.trim()) return;
 
     if (isRecurringType) {
-      const endDate = recurringEndDate || lastSeriesDate;
-      if (!endDate) {
-        alert('Пожалуйста, укажите дату окончания для регулярных занятий');
-        return;
-      }
-      if (new Date(endDate) <= new Date(date)) {
-        alert('Дата окончания должна быть позже даты начала');
+      if (sessionCount < 1) {
+        alert('Укажите количество занятий (не менее 1)');
         return;
       }
     }
@@ -205,8 +245,8 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
               comment: comment.trim(),
               color: selectedActivity.color,
               isRecurring: isRecurringType,
-              recurringEndDate: isRecurringType ? (recurringEndDate || lastSeriesDate) : undefined,
-              ...(activity === 'Группа' && coach.trim() ? { coach: coach.trim() } : {}),
+              recurringEndDate: isRecurringType ? effectiveRecurringEndDate : undefined,
+              ...((activity === 'Группа' || activity === 'Персональная тренировка') && coach.trim() ? { coach: coach.trim() } : {}),
               status: 'canceled',
             },
             existingBooking.id,
@@ -389,9 +429,11 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
             </select>
           </div>
 
-          {activity === 'Группа' && (
+          {(activity === 'Группа' || activity === 'Персональная тренировка') && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Тренер (необязательно)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {activity === 'Персональная тренировка' ? 'Тренер' : 'Тренер (необязательно)'}
+              </label>
               <input
                 type="text"
                 value={coach}
@@ -405,21 +447,25 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
           {isRecurringType && (
             <div className="bg-blue-50 p-4 rounded-lg space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Дата окончания серии</label>
-                <DatePicker
-                  selectedDate={effectiveRecurringEndDate || selectedDate}
-                  onDateChange={setRecurringEndDate}
-                  minDate={selectedDate}
-                  placeholder="Выберите дату окончания"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Количество занятий</label>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <input
+                    type="number"
+                    min={1}
+                    max={104}
+                    value={sessionCount}
+                    onChange={(e) => setSessionCount(Math.max(1, Math.min(104, Number(e.target.value) || 1)))}
+                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {effectiveRecurringEndDate && (
+                    <span className="text-sm text-gray-700">
+                      Дата окончания: <strong>{new Date(effectiveRecurringEndDate + 'T12:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+                    </span>
+                  )}
+                </div>
               </div>
               <p className="text-xs text-gray-600">
-                💡 Бронирования будут созданы каждую неделю в {time} на корте {courtId} до выбранной даты.
-                {effectiveRecurringEndDate && (
-                  <span className="block mt-1 font-medium">
-                    Примерно {Math.ceil((new Date(effectiveRecurringEndDate).getTime() - new Date(date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1} занятий.
-                  </span>
-                )}
+                💡 Бронирования будут созданы каждую неделю в {time} на корте {courtId} ({sessionCount} {sessionCount === 1 ? 'занятие' : sessionCount < 5 ? 'занятия' : 'занятий'}).
               </p>
             </div>
           )}
@@ -517,7 +563,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
               >
                 Отменить бронь
               </button>
-              {(existingBooking.isRecurring || existingBooking.activity === 'Группа' || existingBooking.activity === 'Регулярная бронь корта') && onRequestCancelSeries && (
+              {(existingBooking.isRecurring || existingBooking.activity === 'Группа' || existingBooking.activity === 'Регулярная бронь корта' || existingBooking.activity === 'Персональная тренировка') && onRequestCancelSeries && (
                 <button
                   type="button"
                   onClick={handleCancelSeries}

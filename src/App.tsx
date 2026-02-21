@@ -18,7 +18,7 @@ export interface Booking {
   color: string;
   isRecurring?: boolean;
   recurringEndDate?: string;
-  /** Тренер (только для групповых занятий) */
+  /** Тренер (для групповых и персональных тренировок) */
   coach?: string;
   /** Статус: confirmed — оплачена, hold — ожидает оплаты, canceled — отменена */
   status?: BookingStatus;
@@ -29,6 +29,7 @@ export const activityTypes = [
   { name: 'Группа', color: '#3b82f6' },
   { name: 'Регулярная бронь корта', color: '#10b981' },
   { name: 'Турнир', color: '#fca5a5' },
+  { name: 'Персональная тренировка', color: '#a78bfa' },
 ];
 
 export default function App() {

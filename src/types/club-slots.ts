@@ -17,7 +17,7 @@ export interface ClubPricing {
 }
 
 /** Типы бронирований (как в ADMIN_README) */
-export type BookingType = 'one_time' | 'group' | 'regular' | 'tournament';
+export type BookingType = 'one_time' | 'group' | 'regular' | 'tournament' | 'personal_training';
 
 /** Документ клуба: clubs/{clubId} */
 export interface ClubDoc {
@@ -48,7 +48,7 @@ export interface ClubBookingDoc {
   startTime: unknown; // Firestore Timestamp
   endTime: unknown;
   comment: string;
-  /** Тренер (для типа group) */
+  /** Тренер (для типа group и personal_training) */
   coach?: string;
   firstSessionDate?: unknown | null;
   lastSessionDate?: unknown | null;
@@ -61,4 +61,5 @@ export const BOOKING_TYPE_LABELS: Record<BookingType, string> = {
   group: 'Группа',
   regular: 'Регулярная',
   tournament: 'Турнир',
+  personal_training: 'Персональная тренировка',
 };

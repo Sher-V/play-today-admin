@@ -75,21 +75,23 @@ clubs                          — коллекция клубов
 | startTime         | Timestamp  | Время начала брони |
 | endTime           | Timestamp  | Время окончания брони |
 | comment           | string     | Комментарий к брони |
-| firstSessionDate  | Timestamp \| null | Дата первого занятия в серии. Для типов `regular` и `group` — обязательно |
-| lastSessionDate   | Timestamp \| null | Дата последнего занятия в серии. Для типов `regular` и `group` — обязательно |
+| coach             | string     | (опц.) Тренер — для типов `group` и `personal_training` |
+| firstSessionDate  | Timestamp \| null | Дата первого занятия в серии. Для типов `regular`, `group` и `personal_training` (регулярная серия) — обязательно |
+| lastSessionDate   | Timestamp \| null | Дата последнего занятия в серии. Для типов `regular`, `group` и `personal_training` (регулярная серия) — обязательно |
 | createdAt         | Date       | (опц.) Дата создания |
 | updatedAt         | Date       | (опц.) Дата обновления |
 
 ### Типы бронирований (BookingType)
 
-| Значение   | Подпись     | Примечание |
-|------------|-------------|------------|
-| one_time   | Разовая     | Одно занятие, firstSessionDate/lastSessionDate можно не заполнять |
-| group      | Группа      | Серия занятий: заполнять firstSessionDate и lastSessionDate |
-| regular    | Регулярная  | Серия занятий: заполнять firstSessionDate и lastSessionDate |
-| tournament | Турнир      | Турнир, firstSessionDate/lastSessionDate по необходимости |
+| Значение           | Подпись                 | Примечание |
+|--------------------|-------------------------|------------|
+| one_time           | Разовая                 | Одно занятие, firstSessionDate/lastSessionDate можно не заполнять |
+| group              | Группа                  | Серия занятий: заполнять firstSessionDate и lastSessionDate |
+| regular            | Регулярная              | Серия занятий: заполнять firstSessionDate и lastSessionDate |
+| tournament         | Турнир                  | Турнир, firstSessionDate/lastSessionDate по необходимости |
+| personal_training   | Персональная тренировка | Может быть разовой (одно занятие) или регулярной (серия). Поле тренера (coach) обязательно. firstSessionDate/lastSessionDate — для регулярной серии |
 
-Для типов `regular` и `group` в Firestore хранятся даты первого и последнего занятия серии (как `Timestamp`).
+Для типов `regular`, `group` и регулярной `personal_training` в Firestore хранятся даты первого и последнего занятия серии (как `Timestamp`).
 
 ### Составные индексы Firestore
 
