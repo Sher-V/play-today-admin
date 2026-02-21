@@ -18,6 +18,8 @@ export interface Booking {
   color: string;
   isRecurring?: boolean;
   recurringEndDate?: string;
+  /** Тренер (только для групповых занятий) */
+  coach?: string;
   /** Статус: confirmed — оплачена, hold — ожидает оплаты, canceled — отменена */
   status?: BookingStatus;
 }

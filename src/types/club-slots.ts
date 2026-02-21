@@ -48,6 +48,8 @@ export interface ClubBookingDoc {
   startTime: unknown; // Firestore Timestamp
   endTime: unknown;
   comment: string;
+  /** Тренер (для типа group) */
+  coach?: string;
   firstSessionDate?: unknown | null;
   lastSessionDate?: unknown | null;
   createdAt?: unknown;

@@ -78,6 +78,7 @@ export async function getBookings(clubId: string, courts: CourtDoc[]): Promise<B
     const courtName = courtById.get(data.courtId as string) ?? (data.courtId as string);
 
     const status = data.status as 'hold' | 'confirmed' | 'canceled' | undefined;
+    const coach = data.coach as string | undefined;
     return {
       id: d.id,
       courtId: courtName,
@@ -88,6 +89,7 @@ export async function getBookings(clubId: string, courts: CourtDoc[]): Promise<B
       comment: (data.comment as string) ?? '',
       color: getColorForActivity(activity),
       ...(status && (status === 'hold' || status === 'confirmed' || status === 'canceled') ? { status } : {}),
+      ...(coach != null && coach !== '' ? { coach } : {}),
     } as Booking;
   });
 }
@@ -126,6 +128,9 @@ export async function addBookingToFirestore(
   if (booking.status && (booking.status === 'hold' || booking.status === 'confirmed' || booking.status === 'canceled')) {
     payload.status = booking.status;
   }
+  if (type === 'group' && booking.coach != null && booking.coach.trim() !== '') {
+    payload.coach = booking.coach.trim();
+  }
   const ref = await addDoc(collection(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_BOOKINGS), payload);
 
   return ref.id;
@@ -158,6 +163,11 @@ export async function updateBookingInFirestore(
   };
   if (booking.status && (booking.status === 'hold' || booking.status === 'confirmed' || booking.status === 'canceled')) {
     payload.status = booking.status;
+  }
+  if (type === 'group' && booking.coach != null && booking.coach.trim() !== '') {
+    payload.coach = booking.coach.trim();
+  } else if (type === 'group') {
+    payload.coach = '';
   }
   const docRef = doc(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_BOOKINGS, bookingId);
   await updateDoc(docRef, payload);

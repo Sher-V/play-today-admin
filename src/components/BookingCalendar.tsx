@@ -164,6 +164,9 @@ export function BookingCalendar({ courts, selectedDate, bookings, openingTime, c
                                   {booking.startTime} - {booking.endTime}
                                 </div>
                                 <div className="font-semibold truncate mt-0.5">{booking.comment}</div>
+                                {booking.activity === 'Группа' && booking.coach && (
+                                  <div className="text-xs opacity-90 truncate mt-0.5">Тренер: {booking.coach}</div>
+                                )}
                               </div>
                               )}
                               <button

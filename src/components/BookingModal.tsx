@@ -53,6 +53,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
     existingBooking ? calculateDuration(existingBooking.startTime, existingBooking.endTime) : (initialDuration || 1)
   );
   const [recurringEndDate, setRecurringEndDate] = useState(existingBooking?.recurringEndDate || '');
+  const [coach, setCoach] = useState(existingBooking?.coach ?? '');
   const [isPaid, setIsPaid] = useState(existingBooking?.status === 'confirmed');
   const [needPaymentLink, setNeedPaymentLink] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(1000);
@@ -103,7 +104,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
     ? getPriceForBooking(pricing, selectedDate, selectedTime, calculateEndTime(selectedTime, duration))
     : 0;
 
-  const buildPayload = () => ({
+  const buildPayload = (): Omit<Booking, 'id'> => ({
     courtId: selectedCourtId,
     date: selectedDate,
     startTime: selectedTime,
@@ -113,6 +114,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
     color: selectedActivity.color,
     isRecurring: isRecurringType,
     recurringEndDate: isRecurringType ? (recurringEndDate || lastSeriesDate) : undefined,
+    ...(activity === 'Группа' && coach.trim() ? { coach: coach.trim() } : {}),
     status: isPaid ? 'confirmed' : 'hold',
   });
 
@@ -193,7 +195,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
     (async () => {
       try {
         await Promise.resolve(
-          onSave(
+            onSave(
             {
               courtId: selectedCourtId,
               date: selectedDate,
@@ -204,6 +206,7 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
               color: selectedActivity.color,
               isRecurring: isRecurringType,
               recurringEndDate: isRecurringType ? (recurringEndDate || lastSeriesDate) : undefined,
+              ...(activity === 'Группа' && coach.trim() ? { coach: coach.trim() } : {}),
               status: 'canceled',
             },
             existingBooking.id,
@@ -385,6 +388,19 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
               ))}
             </select>
           </div>
+
+          {activity === 'Группа' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Тренер (необязательно)</label>
+              <input
+                type="text"
+                value={coach}
+                onChange={(e) => setCoach(e.target.value)}
+                placeholder="ФИО тренера"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
 
           {isRecurringType && (
             <div className="bg-blue-50 p-4 rounded-lg space-y-3">

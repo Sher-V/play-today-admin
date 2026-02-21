@@ -189,7 +189,10 @@ export function WeeklySchedule({ courts, selectedDate, bookings, openingTime, cl
                                       height: `${(timeToMinutes(booking.endTime) - timeToMinutes(booking.startTime)) / 30 * 14}px`
                                     }}
                                     onClick={() => onBookingClick(booking)}
-                                    title={booking.status === 'hold' ? `${booking.comment} (ожидает оплаты)` : booking.comment}
+                                    title={[
+                                      booking.activity === 'Группа' && booking.coach ? `Тренер: ${booking.coach}. ` : '',
+                                      booking.status === 'hold' ? `${booking.comment} (ожидает оплаты)` : booking.comment
+                                    ].filter(Boolean).join('')}
                                   >
                                     <span className="truncate flex items-center gap-0.5">
                                       {booking.status === 'hold' && <Clock className="w-2.5 h-2.5 shrink-0 opacity-90" />}
