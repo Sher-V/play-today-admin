@@ -57,6 +57,29 @@ export async function updateClient(
   await updateDoc(docRef, payload);
 }
 
+/** Создать нового клиента в клубе (имя и опционально контакт). Возвращает id документа. */
+export async function createClient(
+  clubId: string,
+  data: { name: string; contact?: string }
+): Promise<string> {
+  const db = getFirestoreDb();
+  if (!db) throw new Error('Firebase не настроен');
+
+  const name = data.name.trim();
+  if (!name) throw new Error('ФИО клиента не указано');
+
+  const clientsRef = collection(db, COLLECTION_CLUBS, clubId, SUBCOLLECTION_CLIENTS);
+  const payload: Record<string, unknown> = {
+    name,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  if (data.contact?.trim()) payload.contact = data.contact.trim();
+
+  const ref = await addDoc(clientsRef, payload);
+  return ref.id;
+}
+
 /** Найти или создать клиента по ФИО. Возвращает id документа клиента. Идемпотентно по имени. */
 export async function ensureClient(clubId: string, name: string): Promise<string> {
   const trimmed = name.trim();

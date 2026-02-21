@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { X, Copy, Link2 } from 'lucide-react';
+import { X, Copy, Link2, Plus } from 'lucide-react';
 import { Booking, activityTypes } from '../App';
 import { DatePicker } from './DatePicker';
 import { getPriceForBooking, hasPricing } from '../lib/pricing';
 import { generateTimeSlots } from '../lib/timeSlots';
 import type { ClubPricing } from '../types/club-slots';
-import type { Client } from '../lib/clientsFirestore';
+import { createClient, type Client } from '../lib/clientsFirestore';
 
 export interface BookingSaveOptions {
   needPaymentLink?: boolean;
@@ -29,6 +29,10 @@ interface BookingModalProps {
   prefill?: Omit<Booking, 'id'>;
   /** Справочник клиентов клуба (id + ФИО) — для подсказки и связи по clientId. */
   existingClients?: Client[];
+  /** ID клуба — для добавления нового клиента из формы бронирования. */
+  clubId?: string;
+  /** После добавления нового клиента — обновить список (например, перезагрузить клиентов). */
+  onClientAdded?: () => void | Promise<void>;
   paymentLink?: string | null;
   /** Прайс по кортам (имя корта → прайс). Для расчёта суммы используется прайс выбранного корта. */
   pricingByCourt?: Record<string, ClubPricing | null | undefined>;
@@ -42,7 +46,7 @@ interface BookingModalProps {
   onRequestCancelSeries?: (booking: Booking) => void;
 }
 
-export function BookingModal({ courts, courtId, time, date, openingTime = '08:00', closingTime = '22:00', initialDuration, existingBooking, prefill, existingClients = [], paymentLink, pricingByCourt, bookingsInSeries, onClose, onSave, onRequestCancelBooking, onRequestCancelSeries }: BookingModalProps) {
+export function BookingModal({ courts, courtId, time, date, openingTime = '08:00', closingTime = '22:00', initialDuration, existingBooking, prefill, existingClients = [], clubId, onClientAdded, paymentLink, pricingByCourt, bookingsInSeries, onClose, onSave, onRequestCancelBooking, onRequestCancelSeries }: BookingModalProps) {
   const calculateDuration = (start: string, end: string) => {
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
@@ -77,6 +81,10 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
   const [clientId, setClientId] = useState<string | undefined>(existingBooking?.clientId ?? prefill?.clientId);
   const [clientName, setClientName] = useState(existingBooking?.clientName ?? prefill?.clientName ?? '');
   const [clientSuggestionsOpen, setClientSuggestionsOpen] = useState(false);
+  const [showAddClientPopup, setShowAddClientPopup] = useState(false);
+  const [addClientPhone, setAddClientPhone] = useState('');
+  const [addClientSaving, setAddClientSaving] = useState(false);
+  const [addClientError, setAddClientError] = useState('');
   const clientInputRef = useRef<HTMLInputElement>(null);
   const clientSuggestionsRef = useRef<HTMLDivElement>(null);
   const [isPaid, setIsPaid] = useState((existingBooking ?? prefill)?.status === 'confirmed');
@@ -126,6 +134,39 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
       .filter((c) => c.name.trim().toLowerCase().includes(q) && c.name.trim() !== clientName.trim())
       .slice(0, 10);
   }, [clientName, existingClients]);
+
+  /** Введённое ФИО не совпадает ни с одним клиентом — можно добавить нового (показать плюс). */
+  const isNewClient = useMemo(() => {
+    const name = clientName.trim();
+    if (!name) return false;
+    return !existingClients.some((c) => c.name.trim().toLowerCase() === name.toLowerCase());
+  }, [clientName, existingClients]);
+
+  const handleOpenAddClientPopup = () => {
+    setAddClientPhone('');
+    setAddClientError('');
+    setShowAddClientPopup(true);
+  };
+
+  const handleSaveNewClient = async () => {
+    const name = clientName.trim();
+    if (!name || !clubId) return;
+    setAddClientError('');
+    setAddClientSaving(true);
+    try {
+      const id = await createClient(clubId, {
+        name,
+        contact: addClientPhone.trim() || undefined,
+      });
+      setClientId(id);
+      await Promise.resolve(onClientAdded?.());
+      setShowAddClientPopup(false);
+    } catch (e) {
+      setAddClientError(e instanceof Error ? e.message : 'Не удалось добавить клиента');
+    } finally {
+      setAddClientSaving(false);
+    }
+  };
 
   /** Только активные (не отменённые) брони серии — для расчёта количества занятий. */
   const activeInSeries = useMemo(
@@ -450,44 +491,73 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
             </select>
           </div>
 
-          <div className="relative">
+          <div className="relative overflow-visible">
             <label className="block text-sm font-medium text-gray-700 mb-1">Клиент</label>
-            <input
-              ref={clientInputRef}
-              type="text"
-              value={clientName}
-              onChange={(e) => {
-                setClientName(e.target.value);
-                setClientId(undefined);
-                setClientSuggestionsOpen(true);
-              }}
-              onFocus={() => clientName.trim() && setClientSuggestionsOpen(true)}
-              onBlur={() => setTimeout(() => setClientSuggestionsOpen(false), 200)}
-              placeholder="ФИО клиента"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {clientSuggestionsOpen && clientSuggestions.length > 0 && (
-              <div
-                ref={clientSuggestionsRef}
-                className="absolute z-10 w-full mt-1 py-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-              >
-                {clientSuggestions.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setClientId(c.id);
-                      setClientName(c.name);
-                      setClientSuggestionsOpen(false);
-                    }}
+            <div className="flex flex-nowrap gap-2 items-center">
+              <div className="relative flex-1 min-w-0">
+                <input
+                  ref={clientInputRef}
+                  type="text"
+                  value={clientName}
+                  onChange={(e) => {
+                    setClientName(e.target.value);
+                    setClientId(undefined);
+                    setClientSuggestionsOpen(true);
+                  }}
+                  onFocus={() => clientName.trim() && setClientSuggestionsOpen(true)}
+                  onBlur={() => setTimeout(() => setClientSuggestionsOpen(false), 200)}
+                  placeholder="ФИО клиента"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {clientSuggestionsOpen && clientSuggestions.length > 0 && (
+                  <div
+                    ref={clientSuggestionsRef}
+                    className="absolute z-10 w-full mt-1 py-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
                   >
-                    {c.name}
-                  </button>
-                ))}
+                    {clientSuggestions.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setClientId(c.id);
+                          setClientName(c.name);
+                          setClientSuggestionsOpen(false);
+                        }}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+              {isNewClient && clientName.trim() && clubId && (
+                <button
+                  type="button"
+                  onClick={handleOpenAddClientPopup}
+                  title="Добавить клиента в справочник клуба"
+                  aria-label="Добавить клиента"
+                  style={{
+                    minWidth: '2.5rem',
+                    minHeight: '2.5rem',
+                    width: '2.5rem',
+                    height: '2.5rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: '#22c55e',
+                    color: '#fff',
+                    border: '1px solid #16a34a',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    fontWeight: 700,
+                    fontSize: '1.25rem',
+                    lineHeight: 1,
+                  }}
+                  className="flex-none flex items-center justify-center shrink-0 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-opacity"
+                >
+                  <span aria-hidden>+</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {(activity === 'Группа' || activity === 'Персональная тренировка') && (
@@ -647,13 +717,14 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
             aria-labelledby="comment-scope-title"
           >
             <div
-              className="bg-white rounded-xl shadow-xl p-5 max-w-sm w-full space-y-4"
+              className="bg-white rounded-xl border border-gray-200 shadow-2xl p-4 max-w-sm w-full space-y-4"
+              style={{ boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}
               onClick={(e) => e.stopPropagation()}
             >
               <h3 id="comment-scope-title" className="text-base font-semibold text-gray-900">
                 Изменить комментарий для всей серии?
               </h3>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => handleCommentScopeChoice(true)}
@@ -677,6 +748,82 @@ export function BookingModal({ courts, courtId, time, date, openingTime = '08:00
                   className="w-full px-4 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer disabled:opacity-50 text-sm"
                 >
                   Отменить
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {showAddClientPopup && (
+          <div
+            className="absolute inset-0 rounded-lg flex items-center justify-center bg-black/30 p-4"
+            style={{ zIndex: 9998 }}
+            aria-modal="true"
+            role="dialog"
+            aria-labelledby="add-client-title"
+          >
+            <div
+              className="bg-white rounded-xl border border-gray-200 shadow-2xl p-4 max-w-sm w-full space-y-4"
+              style={{ boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 id="add-client-title" className="text-base font-semibold text-gray-900">
+                Добавить клиента в справочник
+              </h3>
+              <p className="text-sm text-gray-600">
+                <strong>{clientName.trim()}</strong>
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Телефон (необязательно)</label>
+                <input
+                  type="text"
+                  value={addClientPhone}
+                  onChange={(e) => setAddClientPhone(e.target.value)}
+                  placeholder="+7 999 123-45-67"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {addClientError && (
+                <p className="text-sm text-red-600" role="alert">{addClientError}</p>
+              )}
+              <div className="flex gap-2 pt-4">
+                <button
+                  type="button"
+                  onClick={handleSaveNewClient}
+                  disabled={addClientSaving}
+                  aria-label="Сохранить клиента"
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem 0.75rem',
+                    backgroundColor: '#16a34a',
+                    color: '#ffffff',
+                    border: '1px solid #15803d',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  }}
+                  className="disabled:opacity-50 hover:opacity-90 transition-opacity"
+                >
+                  {addClientSaving ? 'Сохранение…' : 'Сохранить'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddClientPopup(false)}
+                  disabled={addClientSaving}
+                  aria-label="Отмена"
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem 0.75rem',
+                    backgroundColor: '#ffffff',
+                    color: '#374151',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.8125rem',
+                    fontWeight: 500,
+                  }}
+                  className="disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                >
+                  Отмена
                 </button>
               </div>
             </div>

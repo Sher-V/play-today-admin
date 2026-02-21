@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Navigate, Link, useSearchParams } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirebaseAuth } from '../lib/firebase';
@@ -801,6 +801,8 @@ export function MainPage() {
               existingBooking={returnToBookingDraft ? undefined : editingBooking ?? undefined}
               prefill={returnToBookingDraft ?? undefined}
               existingClients={existingClients}
+              clubId={club?.clubId}
+              onClientAdded={loadClients}
               bookingsInSeries={bookingsInSeries}
               paymentLink={paymentLink}
               pricingByCourt={pricingByCourt}
