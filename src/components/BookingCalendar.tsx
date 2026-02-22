@@ -208,9 +208,9 @@ export function BookingCalendar({ courts, selectedDate, bookings, openingTime, c
       {/* Легенда: цвета типов бронирования (дневное расписание) */}
       <div className="border-t bg-gray-50 py-2 px-3 mt-2 rounded-b-lg">
         <p className="text-xs font-medium text-gray-600 mb-1.5">Цвета типов бронирования</p>
-        <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-500">
+        <div className="flex flex-wrap text-xs text-gray-500 mt-1" style={{ gap: '12px'}}>
           {activityTypes.map((type) => (
-            <div key={type.name} className="flex items-center gap-2">
+            <div key={type.name} className="flex items-center" style={{ gap: '3px' }}>
               <div className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: type.color }} />
               <span>{type.name}</span>
             </div>
