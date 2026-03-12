@@ -21,6 +21,32 @@ const defaultPricing = (open: string, close: string): ClubPricing => ({
   weekend: [defaultPriceSlot(open, close, 2000)],
 });
 
+type PaymentIntegration = 'yookassa' | 'bank_account';
+type PaymentLinkKey = 'one_time' | 'group' | 'regular' | 'personal_training';
+
+const PAYMENT_LINK_FIELDS: { key: PaymentLinkKey; label: string; description: string }[] = [
+  {
+    key: 'one_time',
+    label: 'Разовая бронь корта',
+    description: 'Ссылка на оплату разовой аренды корта',
+  },
+  {
+    key: 'group',
+    label: 'Группа',
+    description: 'Ссылка на оплату групповых занятий',
+  },
+  {
+    key: 'regular',
+    label: 'Регулярная бронь корта',
+    description: 'Ссылка на оплату регулярных броней',
+  },
+  {
+    key: 'personal_training',
+    label: 'Персональная тренировка',
+    description: 'Ссылка на оплату персональных тренировок',
+  },
+];
+
 export function AccountPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<{ uid: string; email: string | null } | null>(null);
@@ -28,9 +54,12 @@ export function AccountPage() {
   const [loading, setLoading] = useState(true);
   const [courtsCountInput, setCourtsCountInput] = useState('1');
   const [yandexMapsUrl, setYandexMapsUrl] = useState('');
+  const [telegramAdmin, setTelegramAdmin] = useState('');
   const [openingTime, setOpeningTime] = useState('07:00');
   const [closingTime, setClosingTime] = useState('23:00');
   const [pricing, setPricing] = useState<ClubPricing>(() => defaultPricing('07:00', '23:00'));
+  const [paymentIntegration, setPaymentIntegration] = useState<PaymentIntegration>('yookassa');
+  const [paymentLinks, setPaymentLinks] = useState<Partial<Record<PaymentLinkKey, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -62,6 +91,7 @@ export function AccountPage() {
         if (stored) {
           setCourtsCountInput(String(stored.courtsCount ?? 1));
           setYandexMapsUrl(stored.yandexMapsUrl ?? '');
+          setTelegramAdmin(stored.telegramAdmin ?? '');
           setOpeningTime(stored.openingTime ?? '07:00');
           setClosingTime(stored.closingTime ?? '23:00');
           setPricing(
@@ -69,6 +99,14 @@ export function AccountPage() {
               ? stored.pricing
               : defaultPricing(stored.openingTime ?? '07:00', stored.closingTime ?? '23:00')
           );
+          if (stored.paymentIntegration === 'bank_account' || stored.paymentIntegration === 'yookassa') {
+            setPaymentIntegration(stored.paymentIntegration);
+          } else {
+            setPaymentIntegration('yookassa');
+          }
+          if (stored.paymentLinks) {
+            setPaymentLinks(stored.paymentLinks as Partial<Record<PaymentLinkKey, string>>);
+          }
         }
       } else {
         setClub(null);
@@ -117,18 +155,24 @@ export function AccountPage() {
       await updateClubInFirestore(club.clubId, {
         courtsCount,
         yandexMapsUrl: yandexMapsUrl.trim(),
+        telegramAdmin: telegramAdmin.trim(),
         openingTime,
         closingTime,
         pricing,
+        paymentIntegration,
+        paymentLinks,
       });
       setCourtsCountInput(String(courtsCount));
       const updated: ClubData = {
         ...club,
         courtsCount,
         yandexMapsUrl: yandexMapsUrl.trim() || undefined,
+        telegramAdmin: telegramAdmin.trim() || undefined,
         openingTime,
         closingTime,
         pricing,
+        paymentIntegration,
+        paymentLinks,
       };
       saveClub(updated);
       setClub(updated);
@@ -214,6 +258,20 @@ export function AccountPage() {
             </div>
 
             <div className="account-page__field">
+              <label htmlFor="account-telegram-admin">Telegram аккаунт администратора</label>
+              <input
+                id="account-telegram-admin"
+                type="text"
+                value={telegramAdmin}
+                onChange={(e) => setTelegramAdmin(e.target.value)}
+                placeholder="@club_admin"
+              />
+              <span className="account-page__hint">
+                Аккаунт Telegram для отправки уведомлений о новых бронированиях из бота.
+              </span>
+            </div>
+
+            <div className="account-page__field">
               <div className="account-page__time-row">
                 <Clock size={18} />
                 <span>Время работы</span>
@@ -259,6 +317,71 @@ export function AccountPage() {
                 onRemove={(index) => removeSlot('weekend', index)}
                 onUpdateSlot={(index, field, value) => updateSlot('weekend', index, field, value)}
               />
+            </div>
+
+            <div>
+              <h3 className="account-page__pricing-title">Настройки оплаты</h3>
+              <p className="account-page__pricing-hint">
+                Выберите, как вы хотите принимать онлайн-оплату за бронирования, и при необходимости задайте ссылки на оплату.
+              </p>
+
+              <div className="account-page__field">
+                <label className="account-page__hint" style={{ marginBottom: '0.25rem' }}>
+                  Способ интеграции
+                </label>
+                <div className="account-page__time-fields">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="radio"
+                      name="paymentIntegration"
+                      value="yookassa"
+                      checked={paymentIntegration === 'yookassa'}
+                      onChange={() => setPaymentIntegration('yookassa')}
+                    />
+                    <span>ЮKassa (ссылка на оплату создаётся автоматически)</span>
+                  </label>
+                </div>
+                <div className="account-page__time-fields" style={{ marginTop: '0.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="radio"
+                      name="paymentIntegration"
+                      value="bank_account"
+                      checked={paymentIntegration === 'bank_account'}
+                      onChange={() => setPaymentIntegration('bank_account')}
+                    />
+                    <span>Оплата по расчётному счёту (готовые ссылки на оплату)</span>
+                  </label>
+                </div>
+              </div>
+
+              {paymentIntegration === 'bank_account' && (
+                <div className="account-page__field">
+                  <p className="account-page__pricing-hint">
+                    Укажите ссылки на оплату по расчётному счёту для разных услуг (по желанию). Если ссылка не указана, ссылка на оплату для этой услуги создана не будет.
+                  </p>
+                  <div className="account-page__time-fields" style={{ flexDirection: 'column', gap: '0.75rem' }}>
+                    {PAYMENT_LINK_FIELDS.map(({ key, label, description }) => (
+                      <div key={key} className="account-page__subfield">
+                        <label htmlFor={`payment-link-${key}`}>{label}</label>
+                        <input
+                          id={`payment-link-${key}`}
+                          type="url"
+                          value={paymentLinks[key] ?? ''}
+                          onChange={(e) =>
+                            setPaymentLinks((prev) => ({
+                              ...prev,
+                              [key]: e.target.value || undefined,
+                            }))
+                          }
+                          placeholder="https://..."
+                        />
+                        <span className="account-page__hint">{description} (опционально)</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {error && (

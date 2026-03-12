@@ -89,20 +89,13 @@
 
   ## Deploy on push to GitHub
 
-  При пуше в ветку `main` приложение автоматически деплоится на Firebase Hosting.
+  Настроены два деплоя: **stage** (ветка `dev`, environment **dev**) и **prod** (ветка `main`, environment **prod**). При пуше в соответствующую ветку приложение деплоится в нужный Firebase-проект.
 
-  1. Создайте репозиторий на GitHub и добавьте remote:
-     ```bash
-     git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
-     ```
-  2. Добавьте секреты в GitHub: Settings → Secrets and variables → Actions → New repository secret:
-     - `FIREBASE_SERVICE_ACCOUNT_PLAY_TODAY_479819` — содержимое JSON-ключа сервисного аккаунта Firebase (см. [настройка секрета](#настройка-секрета-для-github-actions))
-     - Для сборки в проде нужны переменные Firebase (они подставляются при `npm run build`): `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` — значения берите в Firebase Console → Project settings → General → Your apps (Web app).
-  3. Пуш в `main`: `git push -u origin main`
+  1. Создайте в репозитории два environment: **dev** и **prod** (Settings → Environments).
+  2. В каждом environment добавьте свои секреты (см. [GITHUB_DEPLOY.md](./GITHUB_DEPLOY.md)):
+     - **prod**: `VITE_FIREBASE_*`, `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT` — данные продового Firebase-проекта.
+     - **dev**: те же имена секретов, но значения от **stage** Firebase-проекта.
+  3. Пуш в `main` → деплой в prod; пуш в `dev` → деплой в stage.
 
-  Подробнее: [GITHUB_DEPLOY.md](./GITHUB_DEPLOY.md)
-
-  ### Настройка секрета для GitHub Actions
-
-  В [Firebase Console](https://console.firebase.google.com/) → Project settings → Service accounts → Generate new private key. Скачанный JSON целиком вставьте в значение секрета `FIREBASE_SERVICE_ACCOUNT_PLAY_TODAY_479819`.
+  Подробный список секретов и настройка: [GITHUB_DEPLOY.md](./GITHUB_DEPLOY.md).
   
