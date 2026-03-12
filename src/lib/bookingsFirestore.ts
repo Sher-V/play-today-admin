@@ -28,11 +28,11 @@ const ACTIVITY_TO_TYPE: Record<string, BookingType> = {
   'Персональная тренировка': 'personal_training',
 };
 
-function activityToType(activity: string): BookingType {
+export function activityToType(activity: string): BookingType {
   return ACTIVITY_TO_TYPE[activity] ?? 'one_time';
 }
 
-function typeToActivity(type: string): string {
+export function typeToActivity(type: string): string {
   const entry = Object.entries(ACTIVITY_TO_TYPE).find(([, t]) => t === type);
   return entry ? entry[0] : 'Разовая бронь корта';
 }

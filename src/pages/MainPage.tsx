@@ -8,6 +8,7 @@ import {
   getBookings,
   addBookingToFirestore,
   updateBookingInFirestore,
+  activityToType,
 } from '../lib/bookingsFirestore';
 import { getClients, ensureClient, type Client } from '../lib/clientsFirestore';
 import type { ClubData } from '../lib/clubStorage';
@@ -552,12 +553,23 @@ export function MainPage() {
 
       if (options?.needPaymentLink) {
         try {
-          const description = `Бронь корта: ${resolvedBooking.courtId}, ${resolvedBooking.date} ${resolvedBooking.startTime}–${resolvedBooking.endTime}. ${resolvedBooking.comment}`.slice(0, 128);
-          const url = await createPaymentLink({
-            amount: options.amount,
-            description,
-          });
-          setPaymentLink(url);
+          if (club.paymentIntegration === 'bank_account') {
+            const bookingType = activityToType(resolvedBooking.activity);
+            const link = club.paymentLinks?.[bookingType];
+            if (link) {
+              setPaymentLink(link);
+            } else {
+              alert('Для этой услуги не настроена ссылка на оплату по расчётному счёту. Добавьте её в разделе «Настройки оплаты» клуба.');
+              setModalOpen(false);
+            }
+          } else {
+            const description = `Бронь корта: ${resolvedBooking.courtId}, ${resolvedBooking.date} ${resolvedBooking.startTime}–${resolvedBooking.endTime}. ${resolvedBooking.comment}`.slice(0, 128);
+            const url = await createPaymentLink({
+              amount: options.amount,
+              description,
+            });
+            setPaymentLink(url);
+          }
         } catch (e) {
           console.error(e);
           alert(e instanceof Error ? e.message : 'Не удалось создать ссылку на оплату. Бронирование сохранено.');

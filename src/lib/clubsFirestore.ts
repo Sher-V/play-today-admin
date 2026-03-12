@@ -1,7 +1,7 @@
 import { getFirestoreDb } from './firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs, orderBy, type DocumentSnapshot } from 'firebase/firestore';
 import type { ClubData } from './clubStorage';
-import type { CourtDoc, ClubPricing } from '../types/club-slots';
+import type { CourtDoc, ClubPricing, BookingType } from '../types/club-slots';
 
 const COLLECTION_CLUBS = 'clubs';
 const SUBCOLLECTION_COURTS = 'courts';
@@ -25,6 +25,7 @@ export async function saveClubToFirestore(data: ClubData, userId: string): Promi
     email: data.email,
     city: data.city ?? '',
     yandexMapsUrl: data.yandexMapsUrl ?? '',
+    telegramAdmin: data.telegramAdmin ?? '',
     courtsCount: data.courtsCount,
     openingTime: data.openingTime,
     closingTime: data.closingTime,
@@ -34,6 +35,12 @@ export async function saveClubToFirestore(data: ClubData, userId: string): Promi
   };
   if (data.pricing && (data.pricing.weekday?.length > 0 || data.pricing.weekend?.length > 0)) {
     payload.pricing = data.pricing;
+  }
+  if (data.paymentIntegration) {
+    payload.paymentIntegration = data.paymentIntegration;
+  }
+  if (data.paymentLinks) {
+    payload.paymentLinks = data.paymentLinks;
   }
   const docRef = await addDoc(collection(db, COLLECTION_CLUBS), payload);
 
@@ -79,19 +86,42 @@ function parsePricingFromDoc(raw: unknown): ClubPricing | undefined {
   return weekday.length || weekend.length ? { weekday, weekend } : undefined;
 }
 
+function parsePaymentIntegration(raw: unknown): ClubData['paymentIntegration'] {
+  if (raw === 'bank_account' || raw === 'yookassa') return raw;
+  return undefined;
+}
+
+function parsePaymentLinks(raw: unknown): Partial<Record<BookingType, string>> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  const result: Partial<Record<BookingType, string>> = {};
+  (['one_time', 'group', 'regular', 'tournament', 'personal_training'] as BookingType[]).forEach((key) => {
+    const v = obj[key];
+    if (typeof v === 'string' && v.trim()) {
+      result[key] = v.trim();
+    }
+  });
+  return Object.keys(result).length ? result : undefined;
+}
+
 function docToClubData(d: DocumentSnapshot): ClubData {
   const data = d.data();
   const pricing = parsePricingFromDoc(data?.pricing);
+  const paymentIntegration = parsePaymentIntegration(data?.paymentIntegration);
+  const paymentLinks = parsePaymentLinks(data?.paymentLinks);
   return {
     clubId: d.id,
     name: data?.name ?? '',
     email: data?.email ?? '',
     city: data?.city ?? '',
     yandexMapsUrl: data?.yandexMapsUrl ?? '',
+    telegramAdmin: data?.telegramAdmin ?? '',
     courtsCount: Number(data?.courtsCount) || 1,
     openingTime: data?.openingTime ?? '07:00',
     closingTime: data?.closingTime ?? '23:00',
     ...(pricing && { pricing }),
+    ...(paymentIntegration && { paymentIntegration }),
+    ...(paymentLinks && { paymentLinks }),
   };
 }
 
@@ -181,6 +211,7 @@ export async function updateClubInFirestore(clubId: string, data: Partial<ClubDa
   if (data.email !== undefined) payload.email = data.email;
   if (data.city !== undefined) payload.city = data.city ?? '';
   if (data.yandexMapsUrl !== undefined) payload.yandexMapsUrl = data.yandexMapsUrl ?? '';
+  if (data.telegramAdmin !== undefined) payload.telegramAdmin = data.telegramAdmin ?? '';
   if (data.openingTime !== undefined) payload.openingTime = data.openingTime;
   if (data.closingTime !== undefined) payload.closingTime = data.closingTime;
   if (data.courtsCount !== undefined) payload.courtsCount = data.courtsCount;
@@ -188,6 +219,12 @@ export async function updateClubInFirestore(clubId: string, data: Partial<ClubDa
     payload.pricing = (data.pricing.weekday?.length || data.pricing.weekend?.length)
       ? data.pricing
       : { weekday: [], weekend: [] };
+  }
+  if (data.paymentIntegration !== undefined) {
+    payload.paymentIntegration = data.paymentIntegration;
+  }
+  if (data.paymentLinks !== undefined) {
+    payload.paymentLinks = data.paymentLinks;
   }
   await updateDoc(ref, payload);
 

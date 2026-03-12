@@ -1,4 +1,4 @@
-import type { ClubPricing } from '../types/club-slots';
+import type { ClubPricing, BookingType } from '../types/club-slots';
 
 const STORAGE_KEY = 'tennis_club_registration';
 
@@ -10,11 +10,21 @@ export interface ClubData {
   city?: string;
   /** Ссылка на место клуба в Яндекс.Картах */
   yandexMapsUrl?: string;
+  /** Telegram аккаунт администратора (для уведомлений из бота) */
+  telegramAdmin?: string;
   courtsCount: number;
   openingTime: string;
   closingTime: string;
   /** Цены за аренду: диапазоны времени для будних и выходных. */
   pricing?: ClubPricing;
+  /** Способ интеграции онлайн-оплат. По умолчанию — ЮKassa. */
+  paymentIntegration?: 'yookassa' | 'bank_account';
+  /**
+   * Ссылки на оплату по расчётному счёту для разных типов услуг.
+   * Используются, если выбран способ интеграции bank_account.
+   * Ключи соответствуют BookingType, кроме 'tournament'.
+   */
+  paymentLinks?: Partial<Record<BookingType, string>>;
 }
 
 function parsePricing(raw: unknown): ClubPricing | undefined {
